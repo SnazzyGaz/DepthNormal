@@ -1,0 +1,1266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Relief Forge</title>
+<style>
+:root{--bg:#f4f3f0;--panel:#fff;--ink:#1d1c1a;--mute:#6d6a64;--line:#dedbd4;--acc:#b5552b;--acc2:#8a3d1c;--well:#e9e7e2;--ok:#2f7d4a;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#151514;--panel:#1e1e1c;--ink:#ecebe7;--mute:#9b978f;--line:#33322f;--acc:#e07a4a;--acc2:#f09a6e;--well:#262624;--ok:#5cbf7d;--err:#f2867e}}
+:root[data-theme=dark]{--bg:#151514;--panel:#1e1e1c;--ink:#ecebe7;--mute:#9b978f;--line:#33322f;--acc:#e07a4a;--acc2:#f09a6e;--well:#262624;--ok:#5cbf7d;--err:#f2867e}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.app{display:grid;grid-template-columns:350px 1fr;height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:14px 16px 40px}
+h1{font-size:17px;margin:0 0 2px;letter-spacing:.2px}
+.sub{color:var(--mute);margin:0 0 12px;font-size:12px}
+section{border-top:1px solid var(--line);padding:12px 0 6px}
+section h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);margin:0 0 8px;display:flex;justify-content:space-between}
+.row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
+button,.btn{appearance:none;border:1px solid var(--line);background:var(--well);color:var(--ink);padding:6px 10px;border-radius:6px;cursor:pointer;font:inherit}
+button:hover:not(:disabled),.btn:hover{border-color:var(--acc)}
+button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button.primary:hover:not(:disabled){background:var(--acc2)}
+button:disabled{opacity:.45;cursor:not-allowed}
+select,input[type=number]{background:var(--well);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit}
+label.f{display:grid;grid-template-columns:1fr auto;gap:2px 8px;margin:7px 0 2px;align-items:center}
+label.f span.v.chg{color:var(--acc);font-weight:700}
+label.f span.v{font-variant-numeric:tabular-nums;color:var(--mute);font-size:12px}
+label.f input[type=range]{grid-column:1/3;width:100%;accent-color:var(--acc)}
+.help{grid-column:1/3;color:var(--mute);font-size:11px;line-height:1.3}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center}
+.status{font-size:12px;color:var(--mute);min-height:1.4em;word-break:break-word}
+.status.err{color:var(--err)} .status.ok{color:var(--ok)}
+progress{width:100%;height:6px;accent-color:var(--acc)}
+input[type=file]{display:none}
+main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.tabs{display:flex;gap:2px;padding:8px 12px 0;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.tab{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 12px;color:var(--mute)}
+.tab.on{color:var(--ink);border-bottom-color:var(--acc)}
+.tab:disabled{opacity:.35}
+.stage{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:16px;min-height:0;position:relative;
+ background:repeating-conic-gradient(var(--well) 0 25%,transparent 0 50%) 0 0/20px 20px}
+.stage canvas{max-width:100%;max-height:100%;image-rendering:auto;box-shadow:0 1px 8px rgba(0,0,0,.25);background:#000}
+.stage.zoom canvas{max-width:none;max-height:none}
+.empty{color:var(--mute);text-align:center;max-width:420px}
+.bar{display:flex;gap:12px;align-items:center;padding:6px 12px;border-top:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--mute);flex-wrap:wrap}
+.bar label{display:flex;gap:6px;align-items:center}
+.grp{font-size:11px;font-weight:600;color:var(--acc);margin:12px 0 0;text-transform:uppercase;letter-spacing:.06em}
+.mrow{display:flex;justify-content:space-between;align-items:center;margin-top:2px}
+.chk{display:flex;gap:6px;align-items:center;margin:5px 0}
+.pill{font-size:11px;padding:1px 6px;border-radius:9px;background:var(--well);color:var(--mute);text-transform:none;letter-spacing:0}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:10px;text-align:center;color:var(--mute);cursor:pointer}
+.drop.hover{border-color:var(--acc);color:var(--ink)}
+.thumbs{display:flex;gap:6px;margin-top:6px}
+.thumbs img{max-height:56px;max-width:100px;border-radius:4px;border:1px solid var(--line)}
+@media (max-width:820px){.app{grid-template-columns:1fr;height:auto}aside{border-right:0;border-bottom:1px solid var(--line)}main{height:80vh}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <h1>Relief Forge</h1>
+  <p class="sub">Clay render → DA3 depth (form) + MoGe-2 normals (local form) → Poisson merge → 16-bit height PNG. Runs locally in your browser.</p>
+
+  <section>
+    <h2>1 · Models</h2>
+    <div class="status" id="gpuStat" style="margin-bottom:6px">Checking GPU…</div>
+    <div class="mrow"><b>Depth</b> <span class="pill" id="epDepth">not loaded</span></div>
+    <div class="row">
+      <select id="depthSel">
+        <option value="fp16">DA3 Mono Large fp16 (656 MB)</option>
+        <option value="q4">DA3 Mono Large q4f16 (336 MB)</option>
+      </select>
+    </div>
+    <div class="row">
+      <button id="btnLoadDepth" class="primary">Download / load</button>
+      <label class="btn" for="fileDepth">Local files…</label><input type="file" id="fileDepth" accept=".onnx,.data,.onnx_data" multiple>
+    </div>
+    <progress id="progDepth" value="0" max="1" hidden></progress>
+    <div class="status" id="statDepth">Downloaded once from Hugging Face, then cached in the browser.</div>
+
+    <div class="mrow" style="margin-top:12px"><b>Normal</b> <span class="pill" id="epNormal">not loaded</span></div>
+    <div class="row">
+      <select id="normalSel">
+        <option value="vitl">MoGe-2 ViT-L normal (best, ~1.3 GB)</option>
+        <option value="vitb" selected>MoGe-2 ViT-B normal (~420 MB)</option>
+        <option value="vits">MoGe-2 ViT-S normal (~140 MB)</option>
+      </select>
+    </div>
+    <div class="row">
+      <button id="btnLoadNormal" class="primary">Download / load</button>
+      <label class="btn" for="fileNormal">Local files…</label><input type="file" id="fileNormal" accept=".onnx,.data,.onnx_data" multiple>
+    </div>
+    <progress id="progNormal" value="0" max="1" hidden></progress>
+    <div class="status" id="statNormal">Official Microsoft ONNX export, fp32. Not needed if you upload a normal map.</div>
+  </section>
+
+  <section>
+    <h2>2 · Images</h2>
+    <div class="drop" id="dropImg">Drop or click: <b>clay / restyled image</b></div>
+    <input type="file" id="fileImg" accept="image/*">
+    <div class="row" style="margin-top:8px">
+      <label class="btn" for="fileNrm">Upload normal map…</label><input type="file" id="fileNrm" accept="image/*">
+      <button id="btnClrNrm" hidden>Clear</button>
+      <select id="nrmConv" hidden><option value="gl">OpenGL (Y up)</option><option value="dx">DirectX (Y down)</option></select>
+    </div>
+    <div class="kv" style="margin-top:8px"><span>Background mask</span>
+      <select id="maskSrc"><option value="off" selected>Off (keep depth background)</option><option value="auto">Auto (alpha, else depth)</option><option value="depth">Depth threshold</option><option value="upload">Uploaded mask</option></select></div>
+    <div class="row"><label class="btn" for="fileMask">Upload mask…</label><input type="file" id="fileMask" accept="image/*"><button id="btnClrMask" hidden>Clear mask</button><span class="help" id="maskInfo"></span></div>
+    <div class="kv" id="nrmSrcRow" hidden><span>Normal source</span><select id="nrmSrc"><option value="upload">Uploaded map</option><option value="model">MoGe-2 model</option></select></div>
+    <div class="thumbs" id="thumbs"></div>
+  </section>
+
+  <section>
+    <h2>3 · Passes</h2>
+    <div class="kv">
+      <span>Working size (long side)</span>
+      <select id="workRes"><option>1024</option><option>1536</option><option selected>2048</option><option>3072</option><option>4096</option></select>
+      <span><b>Depth</b> resolution</span>
+      <select id="globRes"><option>1036</option><option>728</option><option>518</option></select>
+      <span><b>Normal</b> tokens</span>
+      <select id="nTok"><option>1200</option><option>1800</option><option selected>2500</option><option>3600</option></select>
+      <span>Normal tiles</span>
+      <select id="nTiles"><option value="0">off (whole image)</option><option value="2" selected>2 across</option><option value="3">3 across</option><option value="4">4 across</option></select>
+      <span>Extra depth tiles</span>
+      <select id="tileN"><option value="0" selected>off</option><option value="2">2 across</option><option value="3">3 across</option><option value="4">4 across</option></select>
+    </div>
+    <div class="help" style="margin-top:4px">Normal tiles let MoGe see small parts (beads, letters, pupils) bigger. Overlap 33%, feather-blended.</div>
+    <label class="chk"><input type="checkbox" id="tta"> Flip TTA (2× time, cleaner)</label>
+    <div class="row"><button id="btnRun" class="primary" disabled>Run passes</button><button id="btnCancel" hidden>Cancel</button></div>
+    <progress id="runProg" value="0" max="1" hidden></progress>
+    <div class="status" id="runStatus"></div>
+  </section>
+
+  <section>
+    <h2>4 · Relief <button id="btnReset" style="padding:1px 8px;font-size:11px">reset all</button></h2>
+    <div class="help" style="margin-bottom:6px">All sliders start neutral: the output is exactly the base depth map. Each slider adds one effect. Changed values show in colour; double-click a slider to reset it.</div>
+    <div class="kv"><span>Base depth</span><select id="baseSrc"><option value="auto" selected>Auto (tiles if run)</option><option value="tiles">Depth tiles</option><option value="global">Global depth</option></select></div>
+    <div class="help">Depth map the relief is built on. Normals add local detail on top.</div>
+    <div id="params"></div>
+    <label class="chk"><input type="checkbox" id="invert"> Invert (white = low)</label>
+    <label class="chk"><input type="checkbox" id="halfPrev" checked> Half-res while adjusting</label>
+    <div class="status" id="compStatus"></div>
+  </section>
+
+  <section>
+    <h2>5 · Export</h2>
+    <div class="row">
+      <button id="btnPng16" class="primary" disabled>PNG 16-bit</button>
+      <button id="btnPng8" disabled>PNG 8-bit</button>
+      <button id="btnNrmPng" disabled>Normal map PNG</button>
+    </div>
+    <div class="status" id="expStatus">Grayscale, white = high. Exported at full working size.</div>
+  </section>
+</aside>
+
+<main>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-v="input">Input</button>
+    <button class="tab" data-v="global" disabled>Depth</button>
+    <button class="tab" data-v="normal" disabled>Normal</button>
+    <button class="tab" data-v="tiles" disabled>Depth tiles</button>
+    <button class="tab" data-v="mask" disabled>Mask</button>
+    <button class="tab" data-v="relief" disabled>Relief height</button>
+    <button class="tab" data-v="shade" disabled>Shaded preview</button>
+  </div>
+  <div class="stage" id="stage"><div class="empty" id="empty">Load the model and a restyled (clay / uniform material) image to begin.<br><br>Tip: prompt your image model for <i>“white clay bas-relief, uniform matte material, soft raking light from top-left, no background clutter”</i>.</div><canvas id="view" hidden></canvas></div>
+  <div class="bar">
+    <label><input type="checkbox" id="zoom"> 1:1</label>
+    <span id="shadeCtl" hidden>
+      <label>Light <input type="range" id="lightAz" min="0" max="360" value="315"></label>
+      <label>Relief Z <input type="range" id="zEx" min="0.005" max="0.2" step="0.005" value="0.04"></label>
+    </span>
+    <span id="readout" style="margin-left:auto"></span>
+  </div>
+</main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.js"></script>
+<script>
+// ===== Relief core: pure math, no DOM =====
+const Core = (() => {
+  // ---------- box-blur x3 ≈ gaussian ----------
+  function boxSizes(sigma, n = 3) {
+    const wIdeal = Math.sqrt((12 * sigma * sigma / n) + 1);
+    let wl = Math.floor(wIdeal); if (wl % 2 === 0) wl--;
+    const wu = wl + 2;
+    const mIdeal = (12 * sigma * sigma - n * wl * wl - 4 * n * wl - 3 * n) / (-4 * wl - 4);
+    const m = Math.round(mIdeal);
+    const s = []; for (let i = 0; i < n; i++) s.push(i < m ? wl : wu);
+    return s;
+  }
+  function boxH(src, dst, w, h, r) {
+    const iarr = 1 / (r + r + 1);
+    for (let y = 0; y < h; y++) {
+      const o = y * w;
+      const fv = src[o], lv = src[o + w - 1];
+      let val = (r + 1) * fv;
+      for (let j = 0; j < r; j++) val += src[o + Math.min(j, w - 1)];
+      for (let x = 0; x < w; x++) {
+        val += src[o + Math.min(x + r, w - 1)] - (x - r - 1 >= 0 ? src[o + x - r - 1] : fv);
+        dst[o + x] = val * iarr;
+      }
+      void lv;
+    }
+  }
+  function boxV(src, dst, w, h, r) {
+    const iarr = 1 / (r + r + 1);
+    for (let x = 0; x < w; x++) {
+      const fv = src[x];
+      let val = (r + 1) * fv;
+      for (let j = 0; j < r; j++) val += src[Math.min(j, h - 1) * w + x];
+      for (let y = 0; y < h; y++) {
+        val += src[Math.min(y + r, h - 1) * w + x] - (y - r - 1 >= 0 ? src[(y - r - 1) * w + x] : fv);
+        dst[y * w + x] = val * iarr;
+      }
+    }
+  }
+  function blur(src, w, h, sigma) {
+    const out = new Float32Array(src);
+    if (!(sigma > 0.3)) return out;
+    const tmp = new Float32Array(src.length);
+    for (const b of boxSizes(sigma)) {
+      const r = (b - 1) >> 1;
+      if (r < 1) continue;
+      boxH(out, tmp, w, h, r); boxV(tmp, out, w, h, r);
+    }
+    return out;
+  }
+
+  // ---------- gradients (forward diff, Neumann: 0 at last col/row) ----------
+  function grad(f, w, h) {
+    const gx = new Float32Array(w * h), gy = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      gx[i] = x < w - 1 ? f[i + 1] - f[i] : 0;
+      gy[i] = y < h - 1 ? f[i + w] - f[i] : 0;
+    }
+    return [gx, gy];
+  }
+
+  // ---------- FFT radix-2 ----------
+  const twCache = new Map();
+  function tw(n) {
+    if (twCache.has(n)) return twCache.get(n);
+    const c = new Float64Array(n / 2), s = new Float64Array(n / 2);
+    for (let i = 0; i < n / 2; i++) { c[i] = Math.cos(-2 * Math.PI * i / n); s[i] = Math.sin(-2 * Math.PI * i / n); }
+    const rev = new Uint32Array(n); const bits = Math.log2(n);
+    for (let i = 0; i < n; i++) { let r = 0, v = i; for (let b = 0; b < bits; b++) { r = (r << 1) | (v & 1); v >>= 1; } rev[i] = r; }
+    const t = { c, s, rev }; twCache.set(n, t); return t;
+  }
+  function fft(re, im, inverse) {
+    const n = re.length, { c, s, rev } = tw(n);
+    for (let i = 0; i < n; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+    const sg = inverse ? -1 : 1;
+    for (let size = 2; size <= n; size <<= 1) {
+      const half = size >> 1, step = n / size;
+      for (let i = 0; i < n; i += size) for (let j = 0; j < half; j++) {
+        const wr = c[j * step], wi = sg * s[j * step];
+        const a = i + j, b = a + half;
+        const tr = re[b] * wr - im[b] * wi, ti = re[b] * wi + im[b] * wr;
+        re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+      }
+    }
+    if (inverse) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+  }
+  // arbitrary-length FFT via Bluestein
+  const bsCache = new Map();
+  function fftAny(re, im, inverse) {
+    const n = re.length;
+    if ((n & (n - 1)) === 0) return fft(re, im, inverse);
+    let B = bsCache.get(n);
+    if (!B) {
+      let m = 1; while (m < 2 * n - 1) m <<= 1;
+      const wr = new Float64Array(n), wi = new Float64Array(n);
+      for (let k = 0; k < n; k++) { const a = Math.PI * ((k * k) % (2 * n)) / n; wr[k] = Math.cos(a); wi[k] = Math.sin(a); }
+      const br = new Float64Array(m), bi = new Float64Array(m);
+      br[0] = wr[0]; bi[0] = wi[0];
+      for (let k = 1; k < n; k++) { br[k] = br[m - k] = wr[k]; bi[k] = bi[m - k] = wi[k]; }
+      fft(br, bi, false);
+      B = { m, wr, wi, br, bi, ar: new Float64Array(m), ai: new Float64Array(m) }; bsCache.set(n, B);
+    }
+    const { m, wr, wi, br, bi, ar, ai } = B, sg = inverse ? -1 : 1;
+    ar.fill(0); ai.fill(0);
+    // a_k = x_k * conj(w_k) (forward: chirp e^{-i pi k^2/n})
+    for (let k = 0; k < n; k++) { const cr = wr[k], ci = -sg * wi[k]; ar[k] = re[k] * cr - im[k] * ci; ai[k] = re[k] * ci + im[k] * cr; }
+    fft(ar, ai, false);
+    for (let k = 0; k < m; k++) {
+      const bR = br[k], bI = sg * bi[k];
+      const r = ar[k] * bR - ai[k] * bI, i = ar[k] * bI + ai[k] * bR; ar[k] = r; ai[k] = i;
+    }
+    fft(ar, ai, true);
+    for (let k = 0; k < n; k++) { const cr = wr[k], ci = -sg * wi[k]; let r = ar[k] * cr - ai[k] * ci, i = ar[k] * ci + ai[k] * cr; if (inverse) { r /= n; i /= n; } re[k] = r; im[k] = i; }
+  }
+  // DCT-II (unnormalised): X[k] = sum x[n] cos(pi k (2n+1) / 2N)  (Makhoul)
+  function makeDCT(n) {
+    const re = new Float64Array(n), im = new Float64Array(n);
+    const wc = new Float64Array(n), ws = new Float64Array(n);
+    for (let k = 0; k < n; k++) { wc[k] = Math.cos(Math.PI * k / (2 * n)); ws[k] = Math.sin(Math.PI * k / (2 * n)); }
+    return {
+      fwd(x, out) {
+        for (let i = 0; i < n / 2; i++) { re[i] = x[2 * i]; re[n - 1 - i] = x[2 * i + 1]; }
+        im.fill(0); fftAny(re, im, false);
+        for (let k = 0; k < n; k++) out[k] = re[k] * wc[k] + im[k] * ws[k]; // Re(V e^{-i pi k/2N})
+      },
+      inv(X, out) {
+        for (let k = 0; k < n; k++) {
+          const a = X[k], b = k === 0 ? 0 : -X[n - k]; // Z = a + i b
+          re[k] = a * wc[k] - b * ws[k]; im[k] = a * ws[k] + b * wc[k]; // Z e^{+i pi k/2N}
+        }
+        fftAny(re, im, true);
+        for (let i = 0; i < n / 2; i++) { out[2 * i] = re[i]; out[2 * i + 1] = re[n - 1 - i]; }
+      }
+    };
+  }
+  const pow2 = v => { let p = 1; while (p < v) p <<= 1; return Math.max(p, 2); };
+
+  // Solve Laplacian(h) = div(gx,gy), Neumann, via DCT on power-of-2 padded grid
+  function poisson(gx, gy, w, h) {
+    if (w % 2 || h % 2) throw new Error('poisson needs even dims');
+    const W = w, H = h;
+    const f = new Float64Array(W * H);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      f[y * W + x] = gx[i] - (x > 0 ? gx[i - 1] : 0) + gy[i] - (y > 0 ? gy[i - w] : 0);
+    }
+    // cells outside region: divergence of zero field, except the boundary terms are handled since g=0 at last col/row
+    const dx = makeDCT(W), dy = makeDCT(H);
+    const row = new Float64Array(W), rowo = new Float64Array(W), col = new Float64Array(H), colo = new Float64Array(H);
+    for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W; x++) row[x] = f[o + x]; dx.fwd(row, rowo); for (let x = 0; x < W; x++) f[o + x] = rowo[x]; }
+    for (let x = 0; x < W; x++) { for (let y = 0; y < H; y++) col[y] = f[y * W + x]; dy.fwd(col, colo); for (let y = 0; y < H; y++) f[y * W + x] = colo[y]; }
+    const cx = new Float64Array(W), cy = new Float64Array(H);
+    for (let k = 0; k < W; k++) cx[k] = 2 * Math.cos(Math.PI * k / W) - 2;
+    for (let l = 0; l < H; l++) cy[l] = 2 * Math.cos(Math.PI * l / H) - 2;
+    for (let l = 0; l < H; l++) for (let k = 0; k < W; k++) { const d = cx[k] + cy[l]; f[l * W + k] = d === 0 ? 0 : f[l * W + k] / d; }
+    for (let x = 0; x < W; x++) { for (let y = 0; y < H; y++) col[y] = f[y * W + x]; dy.inv(col, colo); for (let y = 0; y < H; y++) f[y * W + x] = colo[y]; }
+    const out = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) { const o = y * W; for (let x = 0; x < W; x++) row[x] = f[o + x]; dx.inv(row, rowo); for (let x = 0; x < w; x++) out[y * w + x] = rowo[x]; }
+    return out;
+  }
+
+  // ---------- helpers ----------
+  function percentile(arr, p, M) {
+    const n = arr.length, step = Math.max(1, Math.floor(n / 200000)), s = [];
+    for (let i = 0; i < n; i += step) if (!M || M[i]) s.push(arr[i]);
+    if (!s.length) return 0;
+    s.sort((a, b) => a - b);
+    return s[Math.min(s.length - 1, Math.max(0, Math.round(p / 100 * (s.length - 1))))];
+  }
+  function normalize(arr, pLo = 0, pHi = 100, M) {
+    const lo = percentile(arr, pLo, M), hi = percentile(arr, pHi, M), r = hi - lo || 1;
+    const o = new Float32Array(arr.length);
+    for (let i = 0; i < arr.length; i++) o[i] = Math.min(1, Math.max(0, (arr[i] - lo) / r));
+    return o;
+  }
+
+  // ---------- masks ----------
+  // normalized convolution: blur inside mask only, no bleed across the silhouette
+  function maskedBlur(f, M, w, h, sigma) {
+    const N = w * h, fm = new Float32Array(N), m = new Float32Array(N);
+    for (let i = 0; i < N; i++) { m[i] = M[i]; fm[i] = M[i] ? f[i] : 0; }
+    const a = blur(fm, w, h, sigma), b = blur(m, w, h, sigma), o = new Float32Array(N);
+    for (let i = 0; i < N; i++) o[i] = M[i] ? a[i] / Math.max(b[i], 1e-6) : f[i];
+    return o;
+  }
+  function otsu(arr, M) {
+    const bins = 256, hist = new Float64Array(bins); let n = 0;
+    for (let i = 0; i < arr.length; i += 3) { if (M && !M[i]) continue; hist[Math.min(255, Math.max(0, arr[i] * 255 | 0))]++; n++; }
+    let sum = 0; for (let i = 0; i < bins; i++) sum += i * hist[i];
+    let sB = 0, wB = 0, best = 0, th = 128, th2 = 128;
+    for (let t = 0; t < bins; t++) { wB += hist[t]; if (!wB) continue; const wF = n - wB; if (!wF) break; sB += t * hist[t];
+      const mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) ** 2; if (v > best * (1 + 1e-9)) { best = v; th = t; th2 = t; } else if (v >= best * (1 - 1e-9)) th2 = t; }
+    return ((th + th2) / 2 + 0.5) / 255;
+  }
+  // threshold a 0..1 field, then close+open by `clean` px, keep components larger than minArea fraction
+  // threshold a field (value > cutoff = subject). cutoff <= 0 keeps everything. Clean-up only when clean > 0:
+  // close+open by `clean` px, drop specks and fill pinholes smaller than minArea.
+  function buildMask(f, w, h, cutoff, clean, minArea = 0.002) {
+    const N = w * h, M = new Uint8Array(N);
+    if (cutoff <= 0) { M.fill(1); return M; }
+    for (let i = 0; i < N; i++) M[i] = f[i] > cutoff ? 1 : 0;
+    if (clean > 0.25) {
+      const morph = (thr) => { const b = blur(Float32Array.from(M), w, h, clean); for (let i = 0; i < N; i++) M[i] = b[i] > thr ? 1 : 0; };
+      morph(0.25); morph(0.75);
+      morph(0.75); morph(0.25);
+      const area = minArea * Math.min(1, clean / 4);
+      const lab = labels(M, w, h), cnt = new Map();
+      for (let i = 0; i < N; i++) if (lab[i]) cnt.set(lab[i], (cnt.get(lab[i]) || 0) + 1);
+      for (let i = 0; i < N; i++) if (lab[i] && cnt.get(lab[i]) < area * N) M[i] = 0;
+      const inv = new Uint8Array(N); for (let i = 0; i < N; i++) inv[i] = 1 - M[i];
+      const lb = labels(inv, w, h), cb = new Map(), touches = new Set();
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x, l = lb[i]; if (!l) continue; cb.set(l, (cb.get(l) || 0) + 1); if (x === 0 || y === 0 || x === w - 1 || y === h - 1) touches.add(l); }
+      for (let i = 0; i < N; i++) { const l = lb[i]; if (l && !touches.has(l) && cb.get(l) < area * N) M[i] = 1; }
+    }
+    return M;
+  }
+  // 4-connected component labels (0 = background)
+  function labels(M, w, h) {
+    const N = w * h, L = new Int32Array(N), st = new Int32Array(N); let next = 0;
+    for (let s = 0; s < N; s++) {
+      if (!M[s] || L[s]) continue; next++; let sp = 0; st[sp++] = s; L[s] = next;
+      while (sp) { const i = st[--sp], x = i % w;
+        if (x > 0 && M[i - 1] && !L[i - 1]) { L[i - 1] = next; st[sp++] = i - 1; }
+        if (x < w - 1 && M[i + 1] && !L[i + 1]) { L[i + 1] = next; st[sp++] = i + 1; }
+        if (i >= w && M[i - w] && !L[i - w]) { L[i - w] = next; st[sp++] = i - w; }
+        if (i + w < N && M[i + w] && !L[i + w]) { L[i + w] = next; st[sp++] = i + w; } }
+    }
+    return L;
+  }
+  // chamfer distance (px) from each mask pixel to the nearest background pixel
+  function distInside(M, w, h) {
+    const N = w * h, d = new Float32Array(N), INF = 1e9, a = 1, b = Math.SQRT2;
+    for (let i = 0; i < N; i++) d[i] = M[i] ? INF : 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (!d[i]) continue; let v = d[i];
+      if (x > 0) v = Math.min(v, d[i - 1] + a); else v = Math.min(v, a);
+      if (y > 0) { v = Math.min(v, d[i - w] + a); if (x > 0) v = Math.min(v, d[i - w - 1] + b); if (x < w - 1) v = Math.min(v, d[i - w + 1] + b); } else v = Math.min(v, a);
+      d[i] = v; }
+    for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) { const i = y * w + x; if (!d[i]) continue; let v = d[i];
+      if (x < w - 1) v = Math.min(v, d[i + 1] + a); else v = Math.min(v, a);
+      if (y < h - 1) { v = Math.min(v, d[i + w] + a); if (x < w - 1) v = Math.min(v, d[i + w + 1] + b); if (x > 0) v = Math.min(v, d[i + w - 1] + b); } else v = Math.min(v, a);
+      d[i] = v; }
+    return d;
+  }
+  // ---- masked Poisson: edge-validity graph, compact PCG, cascadic multigrid ----
+  // Ex[i]=1: edge i->i+1 used with target Gx[i];  Ey[i]=1: edge i->i+w used with target Gy[i]
+  function cgEdges(Gx, Gy, Ex, Ey, w, h, init, iters, tol) {
+    const N = w * h, id = new Int32Array(N).fill(-1); let n = 0;
+    for (let i = 0; i < N; i++) if (Ex[i] || Ey[i] || (i % w > 0 && Ex[i - 1]) || (i >= w && Ey[i - w])) id[i] = n++;
+    const pix = new Int32Array(n), E = new Int32Array(n).fill(-1), Wn = new Int32Array(n).fill(-1), S = new Int32Array(n).fill(-1), Nn = new Int32Array(n).fill(-1);
+    const deg = new Float64Array(n), b = new Float64Array(n), x = new Float64Array(n);
+    for (let i = 0; i < N; i++) { const k = id[i]; if (k < 0) continue; pix[k] = i; x[k] = init ? init[i] : 0;
+      if (Ex[i]) { const j = id[i + 1]; E[k] = j; Wn[j] = k; deg[k]++; deg[j]++; b[k] -= Gx[i]; b[j] += Gx[i]; }
+      if (Ey[i]) { const j = id[i + w]; S[k] = j; Nn[j] = k; deg[k]++; deg[j]++; b[k] -= Gy[i]; b[j] += Gy[i]; } }
+    const r = new Float64Array(n), z = new Float64Array(n), p = new Float64Array(n), q = new Float64Array(n);
+    const Ax = (v, o) => { for (let k = 0; k < n; k++) { let s = deg[k] * v[k]; let j;
+      if ((j = E[k]) >= 0) s -= v[j]; if ((j = Wn[k]) >= 0) s -= v[j]; if ((j = S[k]) >= 0) s -= v[j]; if ((j = Nn[k]) >= 0) s -= v[j]; o[k] = s; } };
+    Ax(x, q); let bn = 0, rz = 0;
+    for (let k = 0; k < n; k++) { r[k] = b[k] - q[k]; bn += b[k] * b[k]; z[k] = deg[k] ? r[k] / deg[k] : 0; p[k] = z[k]; rz += r[k] * z[k]; }
+    bn = Math.sqrt(bn) || 1; let it = 0;
+    for (; it < iters; it++) {
+      Ax(p, q); let pq = 0; for (let k = 0; k < n; k++) pq += p[k] * q[k];
+      if (Math.abs(pq) < 1e-30) break;
+      const al = rz / pq; let rn = 0, rz2 = 0;
+      for (let k = 0; k < n; k++) { x[k] += al * p[k]; const rk = r[k] - al * q[k]; r[k] = rk; rn += rk * rk; const zk = deg[k] ? rk / deg[k] : 0; z[k] = zk; rz2 += rk * zk; }
+      if (Math.sqrt(rn) / bn < tol) { it++; break; }
+      const be = rz2 / rz; rz = rz2;
+      for (let k = 0; k < n; k++) p[k] = z[k] + be * p[k];
+    }
+    const out = new Float32Array(N); for (let k = 0; k < n; k++) out[pix[k]] = x[k];
+    out.iters = it; return out;
+  }
+  function mgSolve(Gx, Gy, Ex, Ey, w, h, fineIters, depth = 0) {
+    let n = 0; for (let i = 0; i < w * h; i++) if (Ex[i] || Ey[i]) n++;
+    if (n < 30000 || w < 24 || h < 24) return cgEdges(Gx, Gy, Ex, Ey, w, h, null, 3000, 1e-7);
+    const w2 = (w + 1) >> 1, h2 = (h + 1) >> 1, N2 = w2 * h2;
+    const gx2 = new Float32Array(N2), gy2 = new Float32Array(N2), ex2 = new Uint8Array(N2), ey2 = new Uint8Array(N2);
+    for (let Y = 0; Y < h2; Y++) for (let X = 0; X < w2; X++) {
+      const c = Y * w2 + X;
+      if (X < w2 - 1) { let s = 0, m = 0;               // horizontal: paths along rows 2Y, 2Y+1 over x=2X..2X+2
+        for (let dy = 0; dy < 2; dy++) { const y = 2 * Y + dy; if (y >= h) continue; const i = y * w + 2 * X;
+          if (2 * X + 2 < w && Ex[i] && Ex[i + 1]) { s += Gx[i] + Gx[i + 1]; m++; } }
+        if (m) { gx2[c] = s / m; ex2[c] = 1; } }
+      if (Y < h2 - 1) { let s = 0, m = 0;
+        for (let dx = 0; dx < 2; dx++) { const x = 2 * X + dx; if (x >= w) continue; const i = 2 * Y * w + x;
+          if (2 * Y + 2 < h && Ey[i] && Ey[i + w]) { s += Gy[i] + Gy[i + w]; m++; } }
+        if (m) { gy2[c] = s / m; ey2[c] = 1; } }
+    }
+    const H2 = mgSolve(gx2, gy2, ex2, ey2, w2, h2, fineIters, depth + 1);
+    const init = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) init[y * w + x] = H2[(y >> 1) * w2 + (x >> 1)];
+    return cgEdges(Gx, Gy, Ex, Ey, w, h, init, fineIters * (depth ? 1 : 1.5) | 0, 1e-6);
+  }
+  function poissonMasked(Gx, Gy, M, w, h, iters = 60) {
+    const N = w * h, Ex = new Uint8Array(N), Ey = new Uint8Array(N);
+    for (let i = 0; i < N; i++) { if (!M[i]) continue; if (i % w < w - 1 && M[i + 1]) Ex[i] = 1; if (i + w < N && M[i + w]) Ey[i] = 1; }
+    return mgSolve(Gx, Gy, Ex, Ey, w, h, iters);
+  }
+
+  // ---------- main relief composition ----------
+  // Internal normal convention: x right, y DOWN, z toward viewer.  dh/dx = -nx/nz, dh/dy = -ny/nz.
+  // inputs: {w,h, depth (Float32 disparity, near=high), depthTiles (Float32|null), normal ({nx,ny,nz}|null), lum (Float32|null)}
+  // All gradients in pixel units (height measured in pixels).
+  // Identity-first: with every effect at neutral, output == normalised base depth.
+  // Effects change the TARGET gradients; only the change (delta) goes through Poisson, so solver error never touches the base.
+  function compose(inp, P) {
+    const { w, h } = inp, L = Math.max(w, h), N = w * h, M = inp.mask || null;
+    const B = (f, s) => M ? maskedBlur(f, M, w, h, s) : blur(f, w, h, s);
+    const sig = Math.max(1, P.baseScale / 100 * L);
+    const zr = P.depthRelief * L;
+    const base = normalize(inp.depth, 0.5, 99.5, M);
+    for (let i = 0; i < N; i++) base[i] *= zr;
+    const [bx, by] = grad(base, w, h);
+    // target gradients start as the base's own
+    let Gx, Gy;
+    if (P.baseSmooth > 0.05) { [Gx, Gy] = grad(B(base, P.baseSmooth / 100 * L), w, h); }
+    else { Gx = Float32Array.from(bx); Gy = Float32Array.from(by); }
+    if (P.formWeight !== 1) for (let i = 0; i < N; i++) { Gx[i] *= P.formWeight; Gy[i] *= P.formWeight; }
+    // + normals (high-passed slopes)
+    if (inp.normal && P.normalGain > 0) {
+      const { nx, ny, nz } = inp.normal, cap = P.slopeCap;
+      let px = new Float32Array(N), py = new Float32Array(N);
+      for (let i = 0; i < N; i++) { const z = Math.max(1e-3, nz[i]);
+        px[i] = Math.max(-cap, Math.min(cap, -nx[i] / z)); py[i] = Math.max(-cap, Math.min(cap, -ny[i] / z)); }
+      if (P.normalSmooth > 0.3) { px = B(px, P.normalSmooth); py = B(py, P.normalSmooth); }
+      const qx = B(px, sig), qy = B(py, sig), k = P.normalGain;
+      for (let i = 0; i < N; i++) { Gx[i] += k * (px[i] - qx[i]); Gy[i] += k * (py[i] - qy[i]); }
+    }
+    // + other depth map's fine detail
+    if (inp.depthTiles && P.tileDetail > 0) {
+      const f = normalize(inp.depthTiles, 0.5, 99.5, M); for (let i = 0; i < N; i++) f[i] *= zr;
+      const fs = B(f, 0.8), lo = B(fs, sig); for (let i = 0; i < N; i++) lo[i] = fs[i] - lo[i];
+      const [dx, dy] = grad(lo, w, h); for (let i = 0; i < N; i++) { Gx[i] += P.tileDetail * dx[i]; Gy[i] += P.tileDetail * dy[i]; }
+    }
+    // + clay shading micro-detail
+    if (inp.lum && P.shadeGain > 0) {
+      const ls = B(inp.lum, 0.7), lb = B(ls, Math.max(1, P.shadeScale / 100 * L));
+      for (let i = 0; i < N; i++) lb[i] = ls[i] - lb[i];
+      const [sx, sy] = grad(lb, w, h);
+      for (let i = 0; i < N; i++) { Gx[i] += P.shadeGain * sx[i]; Gy[i] += P.shadeGain * sy[i]; }
+    }
+    // silhouette walls / compression act on the total
+    if (P.edgeFlatten > 0 || P.compress > 0.001) {
+      const tau = P.edgeThresh, keep = 1 - P.edgeFlatten, a = P.compress;
+      for (let i = 0; i < N; i++) { const gx = Gx[i], gy = Gy[i], m = Math.hypot(gx, gy); if (m < 1e-12) continue;
+        let m2 = m > tau ? tau + (m - tau) * keep : m; if (a > 0.001) m2 = Math.log1p(a * m2) / a;
+        const s = m2 / m; Gx[i] = gx * s; Gy[i] = gy * s; }
+    }
+    // delta = target - base; cut at the mask; integrate only if anything changed
+    let dmax = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x;
+      let dx = Gx[i] - bx[i], dy = Gy[i] - by[i];
+      if (M) { if (!M[i] || x === w - 1 || !M[i + 1]) dx = 0; if (!M[i] || y === h - 1 || !M[i + w]) dy = 0; }
+      Gx[i] = dx; Gy[i] = dy; dmax = Math.max(dmax, Math.abs(dx), Math.abs(dy)); }
+    let H = base;
+    if (dmax > 1e-7) {
+      const D = M ? poissonMasked(Gx, Gy, M, w, h, P.cgIters || 60) : poisson(Gx, Gy, w, h);
+      // delta has zero mean per piece, so each piece keeps its base-depth level
+      if (M) { const lab = labels(M, w, h), sm = new Map(), c = new Map();
+        for (let i = 0; i < N; i++) { const l = lab[i]; if (l) { sm.set(l, (sm.get(l) || 0) + D[i]); c.set(l, (c.get(l) || 0) + 1); } }
+        for (let i = 0; i < N; i++) { const l = lab[i]; H[i] = l ? base[i] + D[i] - sm.get(l) / c.get(l) : 0; } }
+      else { let m = 0; for (let i = 0; i < N; i++) m += D[i]; m /= N; for (let i = 0; i < N; i++) H[i] = base[i] + D[i] - m; }
+    }
+    if (P.flatten > 0) { const big = B(H, L / 6); for (let i = 0; i < N; i++) H[i] -= P.flatten * big[i]; }
+    if (P.outSmooth > 0.3) H = B(H, P.outSmooth);
+    H = normalize(H, P.clipLo, 100 - P.clipHi, M);
+    if (P.gamma !== 1) for (let i = 0; i < N; i++) H[i] = Math.pow(H[i], P.gamma);
+    if (M) {
+      const base0 = P.baseLift, R = P.roundover, d = R > 0.3 ? distInside(M, w, h) : null;
+      for (let i = 0; i < N; i++) {
+        if (!M[i]) { H[i] = 0; continue; }
+        let v = base0 + (1 - base0) * H[i];
+        if (d) { const t = Math.min(1, d[i] / R); v *= t * t * (3 - 2 * t); }
+        H[i] = v;
+      }
+    }
+    if (P.invert) for (let i = 0; i < N; i++) H[i] = 1 - H[i];
+    return H;
+  }
+
+  // ---------- tiles ----------
+  // square tiles covering w x h; returns [{x0,y0,T}]
+  function tileGrid(w, h, n, overlap) {
+    const L = Math.max(w, h), S = Math.min(w, h);
+    const T = Math.ceil(L / (n - (n - 1) * overlap));
+    const along = (len) => {
+      const k = Math.max(1, Math.ceil((len - T) / (T * (1 - overlap)) - 1e-6) + 1);
+      if (len <= T) return [Math.round((len - T) / 2)];
+      const st = (len - T) / (k - 1); const r = [];
+      for (let i = 0; i < k; i++) r.push(Math.round(i * st));
+      return r;
+    };
+    void S;
+    const xs = along(w), ys = along(h), out = [];
+    for (const y0 of ys) for (const x0 of xs) out.push({ x0, y0, T, TW: T, TH: T });
+    return out;
+  }
+  // feather weight for a tile at working pixel (x,y)
+  function featherW(t, x, y, w, h, feather) {
+    const TW = t.TW || t.T, TH = t.TH || t.T;
+    const f = Math.max(1, feather * Math.min(TW, TH));
+    const lx = x - t.x0, ly = y - t.y0, rx = t.x0 + TW - 1 - x, ry = t.y0 + TH - 1 - y;
+    const ax = (t.x0 <= 0 ? 1 : Math.min(1, (lx + 0.5) / f)) * (t.x0 + TW >= w ? 1 : Math.min(1, (rx + 0.5) / f));
+    const ay = (t.y0 <= 0 ? 1 : Math.min(1, (ly + 0.5) / f)) * (t.y0 + TH >= h ? 1 : Math.min(1, (ry + 0.5) / f));
+    const s = v => v * v * (3 - 2 * v);
+    return s(Math.max(0, ax)) * s(Math.max(0, ay));
+  }
+  // bilinear-sample model output planes (SW x SH each) back into tile rect t (working coords), clipped to image
+  function samplePlanes(planes, SW, SH, t, w, h) {
+    const TW = t.TW || t.T, TH = t.TH || t.T;
+    const x1 = Math.max(0, t.x0), y1 = Math.max(0, t.y0), x2 = Math.min(w, t.x0 + TW), y2 = Math.min(h, t.y0 + TH);
+    const rw = x2 - x1, rh = y2 - y1, sx = SW / TW, sy = SH / TH;
+    const rs = planes.map(() => new Float32Array(rw * rh));
+    for (let y = y1; y < y2; y++) {
+      let v = (y - t.y0 + 0.5) * sy - 0.5; v = Math.min(SH - 1, Math.max(0, v));
+      const v0 = Math.floor(v), v1 = Math.min(SH - 1, v0 + 1), fv = v - v0;
+      for (let x = x1; x < x2; x++) {
+        let u = (x - t.x0 + 0.5) * sx - 0.5; u = Math.min(SW - 1, Math.max(0, u));
+        const u0 = Math.floor(u), u1 = Math.min(SW - 1, u0 + 1), fu = u - u0, o = (y - y1) * rw + (x - x1);
+        for (let p = 0; p < planes.length; p++) {
+          const q = planes[p];
+          const a = q[v0 * SW + u0] * (1 - fu) + q[v0 * SW + u1] * fu, b = q[v1 * SW + u0] * (1 - fu) + q[v1 * SW + u1] * fu;
+          rs[p][o] = a * (1 - fv) + b * fv;
+        }
+      }
+    }
+    return { rs, x1, y1, rw, rh };
+  }
+  function sampleBack(out, S, t, w, h) { const r = samplePlanes([out], S, S, t, w, h); return { r: r.rs[0], x1: r.x1, y1: r.y1, rw: r.rw, rh: r.rh }; }
+  // accumulate a normal tile (3 planes) with feather weights; caller renormalises
+  function accumulateNormalTile(acc, wsum, w, h, t, samp, feather) {
+    const { rs, x1, y1, rw, rh } = samp;
+    for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) {
+      const X = x + x1, Y = y + y1, i = Y * w + X, o = y * rw + x, wt = featherW(t, X, Y, w, h, feather) + 1e-6;
+      acc[0][i] += wt * rs[0][o]; acc[1][i] += wt * rs[1][o]; acc[2][i] += wt * rs[2][o]; wsum[i] += wt;
+    }
+  }
+  function renormNormals(n) {
+    const [a, b, c] = n;
+    for (let i = 0; i < a.length; i++) { const l = Math.hypot(a[i], b[i], c[i]) || 1; a[i] /= l; b[i] /= l; c[i] /= l; }
+    return n;
+  }
+  // accumulate an aligned tile into acc/wsum; align affinely to reference (global) map
+  function accumulateTile(acc, wsum, ref, w, h, t, samp, feather, Mfit) {
+    const { r, x1, y1, rw, rh } = samp;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0, n = 0;
+    const fit = (useM) => { sx = sy = sxx = sxy = n = 0;
+      for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) {
+        const gi = (y + y1) * w + x + x1; if (useM && !Mfit[gi]) continue;
+        const a = r[y * rw + x], b = ref[gi];
+        sx += a; sy += b; sxx += a * a; sxy += a * b; n++;
+      } };
+    fit(!!Mfit); if (Mfit && n < 0.02 * rw * rh) fit(false);   // fit on subject only; fall back if tile is nearly all background
+    const mx = sx / n, my = sy / n, vx = sxx / n - mx * mx, cxy = sxy / n - mx * my;
+    let s = vx > 1e-12 ? cxy / vx : 1;
+    if (!(s > 0)) { // fallback: match spread
+      let vy = 0; for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) { const d = ref[(y + y1) * w + x + x1] - my; vy += d * d; }
+      s = Math.sqrt((vy / n) / Math.max(vx, 1e-12));
+    }
+    const b0 = my - s * mx;
+    for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) {
+      const X = x + x1, Y = y + y1, i = Y * w + X, wt = featherW(t, X, Y, w, h, feather) + 1e-6;
+      acc[i] += wt * (s * r[y * rw + x] + b0); wsum[i] += wt;
+    }
+  }
+
+  // ---------- previews ----------
+  function hillshade(H, w, h, zScale, az = 315, alt = 40) {
+    const out = new Float32Array(w * h), L = Math.max(w, h);
+    const A = az * Math.PI / 180, E = alt * Math.PI / 180;
+    const lx = Math.cos(E) * Math.sin(A) * -1, ly = Math.cos(E) * Math.cos(A) * -1, lz = Math.sin(E);
+    const k = zScale * L * 0.5;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const dzx = (H[y * w + Math.min(w - 1, x + 1)] - H[y * w + Math.max(0, x - 1)]) * k;
+      const dzy = (H[Math.min(h - 1, y + 1) * w + x] - H[Math.max(0, y - 1) * w + x]) * k;
+      const nx = -dzx, ny = -dzy, nz = 2, nl = Math.hypot(nx, ny, nz);
+      out[i] = Math.max(0, (nx * lx + ny * ly + nz * lz) / nl) * 0.85 + 0.12;
+    }
+    return out;
+  }
+
+  // ---------- fp16 ----------
+  const f32 = new Float32Array(1), u32 = new Uint32Array(f32.buffer);
+  function toHalf(v) {
+    f32[0] = v; const x = u32[0];
+    const sign = (x >>> 16) & 0x8000; let e = ((x >>> 23) & 0xff) - 127 + 15; let m = x & 0x7fffff;
+    if (e <= 0) { if (e < -10) return sign; m = (m | 0x800000) >> (1 - e); return sign | ((m + 0x1000) >> 13); }
+    if (e >= 31) return sign | 0x7c00;
+    const hv = sign | (e << 10) | ((m + 0x1000) >> 13);
+    return hv;
+  }
+  function fromHalf(hv) {
+    const s = hv & 0x8000 ? -1 : 1, e = (hv >> 10) & 0x1f, m = hv & 0x3ff;
+    if (e === 0) return s * m * 5.960464477539063e-8;
+    if (e === 31) return m ? NaN : s * Infinity;
+    return s * (1 + m / 1024) * Math.pow(2, e - 15);
+  }
+
+  // ---------- PNG grayscale 8/16 ----------
+  const crcT = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc(buf) { let c = 0xffffffff; for (let i = 0; i < buf.length; i++) c = crcT[(c ^ buf[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+  async function deflate(data) {
+    if (typeof CompressionStream !== 'undefined') {
+      const cs = new CompressionStream('deflate');
+      const ab = await new Response(new Blob([data]).stream().pipeThrough(cs)).arrayBuffer();
+      return new Uint8Array(ab);
+    }
+    const zlib = await import('node:zlib'); return new Uint8Array(zlib.deflateSync(data));
+  }
+  async function encodePNG(H, w, h, bits = 16) {
+    const bpp = bits / 8, stride = w * bpp + 1, raw = new Uint8Array(stride * h);
+    const max = bits === 16 ? 65535 : 255;
+    for (let y = 0; y < h; y++) {
+      const o = y * stride; raw[o] = 0;
+      for (let x = 0; x < w; x++) {
+        const v = Math.round(Math.min(1, Math.max(0, H[y * w + x])) * max);
+        if (bits === 16) { raw[o + 1 + 2 * x] = v >> 8; raw[o + 2 + 2 * x] = v & 255; } else raw[o + 1 + x] = v;
+      }
+    }
+    const idat = await deflate(raw);
+    const chunk = (type, data) => {
+      const c = new Uint8Array(12 + data.length), dv = new DataView(c.buffer);
+      dv.setUint32(0, data.length); for (let i = 0; i < 4; i++) c[4 + i] = type.charCodeAt(i);
+      c.set(data, 8); dv.setUint32(8 + data.length, crc(c.subarray(4, 8 + data.length))); return c;
+    };
+    const ih = new Uint8Array(13), dv = new DataView(ih.buffer);
+    dv.setUint32(0, w); dv.setUint32(4, h); ih[8] = bits; ih[9] = 0; ih[10] = 0; ih[11] = 0; ih[12] = 0;
+    const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', idat), chunk('IEND', new Uint8Array(0))];
+    return new Blob(parts, { type: 'image/png' });
+  }
+
+  return { blur, grad, poisson, poissonMasked, maskedBlur, otsu, buildMask, labels, distInside, makeDCT, normalize, percentile, compose, tileGrid, featherW, samplePlanes, sampleBack, accumulateTile, accumulateNormalTile, renormNormals, hillshade, toHalf, fromHalf, encodePNG };
+})();
+
+
+</script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const ORT_DIST = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
+const HF = 'https://huggingface.co';
+const DEPTH_MODELS = {
+  fp16: { repo: 'Jens-Duttke/Depth-Anything-3-MONO-ONNX', file: 'da-v3-mono-large_fp16_opset21_optimized.onnx' },
+  q4:   { repo: 'Jens-Duttke/Depth-Anything-3-MONO-ONNX', file: 'da-v3-mono-large_q4f16_opset21_optimized.onnx' },
+};
+const NORMAL_MODELS = {
+  vitl: { repo: 'Ruicheng/moge-2-vitl-normal-onnx' },
+  vitb: { repo: 'Ruicheng/moge-2-vitb-normal-onnx' },
+  vits: { repo: 'Ruicheng/moge-2-vits-normal-onnx' },
+};
+const MEAN = [0.485, 0.456, 0.406], STD = [0.229, 0.224, 0.225];
+
+// [id, label, min, max, step, NEUTRAL, help]  — neutral = no effect; at all-neutral the output is the base depth map
+const PARAMS = [
+  ['— Base depth'],
+  ['baseSmooth',  'Base smoothing',          0,   5,   0.05, 0,    '% of long side. Blurs the base so only its big shapes remain (pair with Normal detail).'],
+  ['formWeight',  'Base strength',           0,   2,   0.01, 1,    'Scales the base depth’s slopes. Below 1 = flatter base, letting added detail dominate.'],
+  ['flatten',     'Flatten large tilt',      0,   1,   0.01, 0,    'Removes very large-scale ramps (e.g. a floor receding).'],
+  ['— Add: normals'],
+  ['normalGain',  'Normal detail',           0,   4,   0.05, 0,    'Adds local form from the normal map.'],
+  ['baseScale',   'Detail size limit',       0.5, 10,  0.1,  3,    '% of long side. Only forms smaller than this are taken from normals / tiles / shading.'],
+  ['normalSmooth','Normal denoise',          0,   4,   0.1,  0,    'px blur on the normal slopes before adding.'],
+  ['slopeCap',    'Max normal slope',        0.5, 10,  0.1,  3,    'Clamps grazing normals (3 ≈ 72°) so silhouettes don’t spike.'],
+  ['— Add: other'],
+  ['tileDetail',  'Other depth detail',      0,   4,   0.05, 0,    'Fine detail from the other depth map (global if tiles are base, and vice versa).'],
+  ['shadeGain',   'Shading detail',          0,   3,   0.05, 0,    'Micro-detail from clay render luminance.'],
+  ['shadeScale',  'Shading detail size',     0.1, 3,   0.05, 0.6,  '% of long side.'],
+  ['— Compress'],
+  ['compress',    'Gradient compression',    0,   10,  0.1,  0,    'Log compression of all slopes: flatter overall, detail kept.'],
+  ['edgeFlatten', 'Silhouette wall flatten', 0,   1,   0.01, 0,    'Shrinks steep walls (depth jumps at outlines).'],
+  ['edgeThresh',  'Wall threshold',          0.1, 5,   0.05, 1,    'Slope counted as a wall (1 = 45°). Used by wall flatten.'],
+  ['depthRelief', 'Base scale vs detail',    0.01,0.5, 0.01, 0.12, 'Base depth range as a fraction of the long side. Only changes how strong compression and added detail are relative to the base.'],
+  ['— Background (needs a mask, section 2)'],
+  ['bgCutoff',    'Background cutoff',       0,   1,   0.002,0.3,  'What counts as background. Depth mode: depth threshold. Flat-colour mode: colour difference from the background. Alpha mode: opacity. 0 = keep everything. Auto-set each run; double-click to re-auto.'],
+  ['maskClean',   'Mask cleanup',            0,   12,  0.5,  0,    'px. Closes gaps, removes specks and fills pinholes. Also erodes parts thinner than ~2× this (claws, whiskers).'],
+  ['baseLift',    'Subject base lift',       0,   0.6, 0.01, 0,    'Raises the subject above the black background.'],
+  ['roundover',   'Edge roundover',          0,   30,  0.5,  0,    'px. 0 = vertical wall, higher = rounded edge.'],
+  ['— Output'],
+  ['outSmooth',   'Output smoothing',        0,   4,   0.1,  0,    'px. Small amount helps toolpaths.'],
+  ['clipLo',      'Clip low %',              0,   5,   0.05, 0,    ''],
+  ['clipHi',      'Clip high %',             0,   5,   0.05, 0,    ''],
+  ['gamma',       'Height gamma',            0.3, 3,   0.01, 1,    '<1 lifts low areas, >1 pushes them down.'],
+];
+const PX_PARAMS = new Set(['normalSmooth', 'outSmooth', 'maskClean', 'roundover']);
+
+const S = { depthSess: null, normalSess: null, img: null, imgName: 'relief', nrmImg: null, W: 0, H: 0,
+  depth: null, depthTiles: null, mogeNormal: null, upNormal: null, lum: null, relief: null, reliefW: 0, reliefH: 0,
+  alpha: null, upMaskImg: null, maskCache: null, view: 'input', cancel: false, busy: false, composeTimer: 0, composeSeq: 0 };
+const P = {};
+
+// ---------- UI ----------
+function markP(id) { const r = PARAMS.find(x => x[0] === id); $('v_' + id).classList.toggle('chg', Math.abs(P[id] - r[5]) > 1e-9); }
+function setP(id, v) { P[id] = v; $('p_' + id).value = v; $('v_' + id).textContent = v; markP(id); }
+function buildParams() {
+  const box = $('params'); box.innerHTML = '';
+  for (const row of PARAMS) {
+    if (row.length === 1) { const h = document.createElement('div'); h.className = 'grp'; h.textContent = row[0].replace('— ', ''); box.appendChild(h); continue; }
+    const [id, label, mn, mx, st, def, help] = row; P[id] = def;
+    const l = document.createElement('label'); l.className = 'f';
+    l.innerHTML = `<span>${label}</span><span class="v" id="v_${id}" title="double-click to reset">${def}</span><input type="range" id="p_${id}" min="${mn}" max="${mx}" step="${st}" value="${def}">${help ? `<span class="help">${help}</span>` : ''}`;
+    box.appendChild(l);
+    l.querySelector('input').addEventListener('input', e => { P[id] = +e.target.value; $('v_' + id).textContent = e.target.value; markP(id); if (S.view === 'mask' && (id === 'bgCutoff' || id === 'maskClean')) render(); scheduleCompose(); });
+    const rs = e => { e.preventDefault(); if (id === 'bgCutoff' && S.depth) setAutoCutoff(); else setP(id, def); S.maskCache = null; scheduleCompose(); };
+    l.querySelector('input').addEventListener('dblclick', rs); $('v_' + id).addEventListener('dblclick', rs);
+  }
+}
+function resetParams() { for (const r of PARAMS) if (r.length > 1 && r[0] !== 'bgCutoff') setP(r[0], r[5]); S.maskCache = null; scheduleCompose(); }
+const setStatus = (el, msg, cls = '') => { const e = $(el); e.textContent = msg; e.className = 'status ' + cls; };
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+// ---------- IndexedDB cache ----------
+function idb() { return new Promise((res, rej) => { try { const r = indexedDB.open('relief-forge', 1); r.onupgradeneeded = () => r.result.createObjectStore('m'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } }); }
+async function cacheGet(k) { try { const db = await idb(); return await new Promise(res => { const q = db.transaction('m').objectStore('m').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch { return null; } }
+async function cachePut(k, v) { try { const db = await idb(); await new Promise(res => { const t = db.transaction('m', 'readwrite'); t.objectStore('m').put(v, k); t.oncomplete = res; t.onerror = res; t.onabort = res; }); return true; } catch { return false; } }
+
+// ---------- generic model loading ----------
+async function listRepo(repo) {
+  const ck = 'list:' + repo, cached = await cacheGet(ck);
+  try {
+    const r = await fetch(`${HF}/api/models/${repo}/tree/main?recursive=true`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(); const files = j.filter(f => f.type === 'file').map(f => ({ path: f.path, size: f.size || (f.lfs && f.lfs.size) || 0 }));
+    cachePut(ck, files); return files;
+  } catch (e) { if (cached) return cached; throw new Error('could not list ' + repo + ' (' + e.message + ')'); }
+}
+// choose the .onnx graph + its external-data files
+function pickFiles(files, prefer) {
+  const onnx = files.filter(f => /\.onnx$/i.test(f.path));
+  if (!onnx.length) throw new Error('no .onnx in repo');
+  let main = prefer ? onnx.find(f => f.path.endsWith(prefer)) : null;
+  main = main || onnx.find(f => /(^|\/)model\.onnx$/i.test(f.path)) || onnx.slice().sort((a, b) => a.path.length - b.path.length)[0];
+  const base = main.path.split('/').pop(), dir = main.path.slice(0, main.path.length - base.length), stem = base.replace(/\.onnx$/i, '');
+  const ext = files.filter(f => f !== main && f.path.startsWith(dir) && !/\.onnx$/i.test(f.path) && f.path.slice(dir.length).startsWith(stem) && /(data|_data|\.bin|\.weight)$/i.test(f.path));
+  return { main, ext };
+}
+async function fetchCached(url, label, prog, stat, done0, total) {
+  let blob = await cacheGet(url);
+  if (blob) return blob;
+  const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + label);
+  const rd = r.body.getReader(), chunks = []; let got = 0;
+  for (;;) { const { done, value } = await rd.read(); if (done) break; chunks.push(value); got += value.length;
+    $(prog).value = (done0 + got) / total; setStatus(stat, `Downloading ${label}… ${((done0 + got) / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB`); }
+  blob = new Blob(chunks); chunks.length = 0;
+  setStatus(stat, 'Caching ' + label + '…'); await cachePut(url, blob);
+  return blob;
+}
+async function makeSession(model, external, pill) {
+  ort.env.wasm.wasmPaths = ORT_DIST;
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(8, navigator.hardwareConcurrency || 4) : 1;
+  const opts = ep => ({ executionProviders: [ep], graphOptimizationLevel: 'all', ...(external.length ? { externalData: external } : {}) });
+  let sess = null, ep = '';
+  if (navigator.gpu) { try { sess = await ort.InferenceSession.create(model, opts('webgpu')); ep = 'webgpu'; }
+    catch (e) { console.warn('webgpu failed', e); setStatus('gpuStat', 'WebGPU session failed, using CPU: ' + String(e.message || e).slice(0, 300), 'err'); } }
+  if (!sess) { sess = await ort.InferenceSession.create(model, opts('wasm')); ep = 'wasm (CPU – slow)'; }
+  sess.__ep = ep; $(pill).textContent = ep; return sess;
+}
+async function loadKind(kind) {
+  const isD = kind === 'depth', cfg = isD ? DEPTH_MODELS[$('depthSel').value] : NORMAL_MODELS[$('normalSel').value];
+  const stat = isD ? 'statDepth' : 'statNormal', prog = isD ? 'progDepth' : 'progNormal', btn = isD ? 'btnLoadDepth' : 'btnLoadNormal';
+  $(btn).disabled = true;
+  try {
+    let main, ext;
+    if (cfg.file) { main = { path: cfg.file, size: 0 }; ext = []; }
+    else { setStatus(stat, 'Listing ' + cfg.repo + '…'); ({ main, ext } = pickFiles(await listRepo(cfg.repo))); }
+    const all = [main, ...ext], total = all.reduce((a, f) => a + (f.size || (isD ? (cfg.file.includes('q4') ? 336e6 : 656e6) : 0)), 0) || 1;
+    $(prog).hidden = false; let done = 0;
+    const blobs = [];
+    for (const f of all) { const b = await fetchCached(`${HF}/${cfg.repo}/resolve/main/${f.path}`, f.path.split('/').pop(), prog, stat, done, total); blobs.push(b); done += b.size; }
+    $(prog).hidden = true;
+    setStatus(stat, 'Building inference session (first run can take a minute)…'); await tick();
+    const model = new Uint8Array(await blobs[0].arrayBuffer());
+    const external = [];
+    for (let i = 1; i < all.length; i++) external.push({ path: all[i].path.split('/').pop(), data: new Uint8Array(await blobs[i].arrayBuffer()) });
+    await setSession(kind, await makeSession(model, external, isD ? 'epDepth' : 'epNormal'));
+    setStatus(stat, `Ready · ${all.map(f => f.path.split('/').pop()).join(' + ')}`, 'ok');
+  } catch (e) {
+    console.error(e);
+    setStatus(stat, 'Load failed: ' + (e.message || e) + '. If downloads are blocked, get the files from Hugging Face manually and use “Local files…” (select the .onnx and any data file together).', 'err');
+  } finally { $(btn).disabled = false; $(prog).hidden = true; }
+}
+async function loadLocal(kind, fileList) {
+  const isD = kind === 'depth', stat = isD ? 'statDepth' : 'statNormal';
+  try {
+    const files = [...fileList], main = files.find(f => /\.onnx$/i.test(f.name));
+    if (!main) throw new Error('select an .onnx file');
+    setStatus(stat, 'Reading files…');
+    const model = new Uint8Array(await main.arrayBuffer()), external = [];
+    for (const f of files) if (f !== main) external.push({ path: f.name, data: new Uint8Array(await f.arrayBuffer()) });
+    setStatus(stat, 'Building inference session…'); await tick();
+    await setSession(kind, await makeSession(model, external, isD ? 'epDepth' : 'epNormal'));
+    setStatus(stat, 'Ready · ' + files.map(f => f.name).join(' + '), 'ok');
+  } catch (e) { console.error(e); setStatus(stat, 'Load failed: ' + (e.message || e), 'err'); }
+}
+async function setSession(kind, sess) {
+  const key = kind === 'depth' ? 'depthSess' : 'normalSess';
+  if (S[key]) { try { await S[key].release(); } catch {} }
+  S[key] = sess; updateButtons();
+}
+
+const HALF = new Float32Array(65536); for (let i = 0; i < 65536; i++) HALF[i] = Core.fromHalf(i);
+const toF32 = d => { if (d instanceof Float32Array) return d; if (d instanceof Uint16Array) { const o = new Float32Array(d.length); for (let i = 0; i < d.length; i++) o[i] = HALF[d[i]]; return o; } return Float32Array.from(d); };
+
+// draw rect t (working coords) of the source image into an RW x RH canvas, optional h-flip; pad with mean colour
+const cvs = document.createElement('canvas'); const cctx = cvs.getContext('2d', { willReadFrequently: true });
+function grabRegion(t, RW, RH, flip) {
+  cvs.width = RW; cvs.height = RH;
+  const TW = t.TW || t.T, TH = t.TH || t.T, sc = S.img.naturalWidth / S.W;
+  cctx.fillStyle = S.meanColor; cctx.fillRect(0, 0, RW, RH);
+  const rx1 = Math.max(0, t.x0), ry1 = Math.max(0, t.y0), rx2 = Math.min(S.W, t.x0 + TW), ry2 = Math.min(S.H, t.y0 + TH);
+  const kx = RW / TW, ky = RH / TH;
+  cctx.imageSmoothingEnabled = true; cctx.imageSmoothingQuality = 'high';
+  cctx.save(); if (flip) { cctx.translate(RW, 0); cctx.scale(-1, 1); }
+  cctx.drawImage(S.img, rx1 * sc, ry1 * sc, (rx2 - rx1) * sc, (ry2 - ry1) * sc, (rx1 - t.x0) * kx, (ry1 - t.y0) * ky, (rx2 - rx1) * kx, (ry2 - ry1) * ky);
+  cctx.restore();
+  return cctx.getImageData(0, 0, RW, RH).data;
+}
+const flipPlane = (a, W, H) => { for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W >> 1; x++) { const v = a[o + x]; a[o + x] = a[o + W - 1 - x]; a[o + W - 1 - x] = v; } } };
+
+// ---- DA3 depth: square S x S, fp16 in/out, ImageNet-normalised
+async function depthRegion(t, Sres, flip) {
+  const d = grabRegion(t, Sres, Sres, flip), n = Sres * Sres, inp = new Uint16Array(3 * n);
+  for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) inp[c * n + i] = Core.toHalf((d[i * 4 + c] / 255 - MEAN[c]) / STD[c]);
+  const s = S.depthSess, res = await s.run({ [s.inputNames[0]]: new ort.Tensor('float16', inp, [1, 3, Sres, Sres]) });
+  const ot = res[s.outputNames[0]], out = toF32(ot.data); try { ot.dispose(); } catch {}
+  if (flip) flipPlane(out, Sres, Sres);
+  return out;
+}
+const isSizeErr = e => /SafeInt|overflow|out of memory|memory access|Aborted|RangeError|allocation/i.test(String(e && (e.message || e)));
+async function depthTTA(t, Sres) {
+  const ladder = [1036, 728, 518, 364].filter(r => r <= Sres);
+  for (let k = 0; k < ladder.length; k++) {
+    try { return { out: await depthTTA0(t, ladder[k]), res: ladder[k] }; }
+    catch (e) { if (!isSizeErr(e) || k === ladder.length - 1) throw e;
+      setStatus('runStatus', `Depth @${ladder[k]} too large for ${S.depthSess.__ep}, retrying @${ladder[k + 1]}…`, 'err'); await tick(); }
+  }
+}
+async function depthTTA0(t, Sres) {
+  const a = await depthRegion(t, Sres, false); if (!$('tta').checked) return a;
+  const b = await depthRegion(t, Sres, true); for (let i = 0; i < a.length; i++) a[i] = 0.5 * (a[i] + b[i]); return a;
+}
+
+// ---- MoGe-2 normals: image fp32 [0,1] NCHW (normalisation inside graph), num_tokens int64 scalar.
+// Output normal [1,H,W,3] in OpenCV camera coords (x right, y down, z forward).  Converted to internal (x right, y down, z toward viewer).
+let mogeImgType = 'float32';
+async function normalRegion(t, RW, RH, flip) {
+  const d = grabRegion(t, RW, RH, flip), n = RW * RH, s = S.normalSess;
+  const mk = type => { if (type === 'float16') { const a = new Uint16Array(3 * n); for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) a[c * n + i] = Core.toHalf(d[i * 4 + c] / 255); return new ort.Tensor('float16', a, [1, 3, RH, RW]); }
+    const a = new Float32Array(3 * n); for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) a[c * n + i] = d[i * 4 + c] / 255; return new ort.Tensor('float32', a, [1, 3, RH, RW]); };
+  const feeds = {}, imgName = s.inputNames.find(x => /image|pixel|input/i.test(x)) || s.inputNames[0];
+  const tokName = s.inputNames.find(x => /token/i.test(x));
+  if (tokName) feeds[tokName] = new ort.Tensor('int64', BigInt64Array.from([BigInt(S.tokOverride || +$('nTok').value)]), []);
+  let res;
+  try { feeds[imgName] = mk(mogeImgType); res = await s.run(feeds); }
+  catch (e) { if (/float16|type/i.test(String(e.message || e))) { mogeImgType = mogeImgType === 'float32' ? 'float16' : 'float32'; feeds[imgName] = mk(mogeImgType); res = await s.run(feeds); } else throw e; }
+  const outName = s.outputNames.find(x => /normal/i.test(x)) || s.outputNames[1] || s.outputNames[0];
+  const ot = res[outName], dims = ot.dims, raw = toF32(ot.data);
+  for (const k in res) { try { res[k].dispose(); } catch {} }
+  const nx = new Float32Array(n), ny = new Float32Array(n), nz = new Float32Array(n);
+  const chLast = dims[dims.length - 1] === 3;
+  for (let i = 0; i < n; i++) {
+    const a = chLast ? raw[i * 3] : raw[i], b = chLast ? raw[i * 3 + 1] : raw[n + i], c = chLast ? raw[i * 3 + 2] : raw[2 * n + i];
+    nx[i] = a; ny[i] = b; nz[i] = -c;      // OpenCV -> internal (z toward viewer)
+  }
+  if (flip) { flipPlane(nx, RW, RH); flipPlane(ny, RW, RH); flipPlane(nz, RW, RH); for (let i = 0; i < n; i++) nx[i] = -nx[i]; }
+  return [nx, ny, nz];
+}
+async function normalTTA(t, RW, RH) {
+  const tok0 = +$('nTok').value, ladder = [3600, 2500, 1800, 1200, 800].filter(v => v <= tok0);
+  for (let k = 0; k < ladder.length; k++) {
+    try { S.tokOverride = ladder[k]; const r = await normalTTA0(t, RW, RH); return r; }
+    catch (e) { if (!isSizeErr(e) || k === ladder.length - 1) throw e;
+      setStatus('runStatus', `Normal @${ladder[k]} tokens too large for ${S.normalSess.__ep}, retrying @${ladder[k + 1]}…`, 'err'); await tick(); }
+    finally { }
+  }
+}
+async function normalTTA0(t, RW, RH) {
+  const a = await normalRegion(t, RW, RH, false); if (!$('tta').checked) return a;
+  const b = await normalRegion(t, RW, RH, true); for (let p = 0; p < 3; p++) for (let i = 0; i < a[p].length; i++) a[p][i] += b[p][i];
+  return Core.renormNormals(a);
+}
+
+// ---------- image prep ----------
+function setupWorking() {
+  const iw = S.img.naturalWidth, ih = S.img.naturalHeight, L = +$('workRes').value, s = L / Math.max(iw, ih);
+  S.W = Math.max(2, Math.round(iw * s / 2) * 2); S.H = Math.max(2, Math.round(ih * s / 2) * 2);
+  const c = document.createElement('canvas'); c.width = S.W; c.height = S.H;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingQuality = 'high'; x.drawImage(S.img, 0, 0, S.W, S.H);
+  const d = x.getImageData(0, 0, S.W, S.H).data, N = S.W * S.H, lum = new Float32Array(N); let r = 0, g = 0, b = 0;
+  for (let i = 0; i < N; i++) { lum[i] = (0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2]) / 255; r += d[i * 4]; g += d[i * 4 + 1]; b += d[i * 4 + 2]; }
+  S.lum = lum; S.meanColor = `rgb(${r / N | 0},${g / N | 0},${b / N | 0})`;
+  let tr = 0; const al = new Float32Array(N); for (let i = 0; i < N; i++) { al[i] = d[i * 4 + 3] / 255; tr += al[i] < 0.5 ? 1 : 0; }
+  S.alpha = tr > N * 0.005 ? al : null; S.maskCache = null;
+  // flat background colour key: if the image border is (near) uniform, everything matching it is background
+  S.key = null;
+  if (!S.alpha) {
+    const bs = []; const W = S.W, H = S.H, step = Math.max(1, (2 * (W + H) / 2000) | 0);
+    for (let x = 0; x < W; x += step) bs.push(x, (H - 1) * W + x);
+    for (let y = 0; y < H; y += step) bs.push(y * W, y * W + W - 1);
+    const m = [0, 0, 0]; for (const i of bs) for (let k = 0; k < 3; k++) m[k] += d[i * 4 + k] / bs.length;
+    let sd = 0, far = 0; for (const i of bs) { let dv = 0; for (let k = 0; k < 3; k++) dv = Math.max(dv, Math.abs(d[i * 4 + k] - m[k])); sd += dv * dv; if (dv > 24) far++; }
+    sd = Math.sqrt(sd / bs.length);
+    if (sd < 8 && far < bs.length * 0.03) {
+      const tol = Math.max(14, 4 * sd), kf = new Float32Array(N);
+      for (let i = 0; i < N; i++) { let dv = 0; for (let k = 0; k < 3; k++) dv = Math.max(dv, Math.abs(d[i * 4 + k] - m[k])); kf[i] = dv / 255; }
+      S.key = { f: kf, color: m.map(v => v | 0), tol: tol / 255 };
+    }
+  }
+  S.preMask = S.alpha ? Core.buildMask(S.alpha, S.W, S.H, 0.5, 1) : S.key ? Core.buildMask(S.key.f, S.W, S.H, S.key.tol, 1) : null;
+  if (S.preMask && $('maskSrc').value === 'off' && !S.maskUserSet) $('maskSrc').value = 'auto';
+  prepUploadNormal();
+}
+function prepUploadNormal() {
+  S.upNormal = null; if (!S.nrmImg || !S.W) return;
+  const c = document.createElement('canvas'); c.width = S.W; c.height = S.H;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(S.nrmImg, 0, 0, S.W, S.H);
+  const d = x.getImageData(0, 0, S.W, S.H).data, N = S.W * S.H, dx = $('nrmConv').value === 'dx';
+  const nx = new Float32Array(N), ny = new Float32Array(N), nz = new Float32Array(N);
+  for (let i = 0; i < N; i++) { nx[i] = d[i * 4] / 127.5 - 1; const g = d[i * 4 + 1] / 127.5 - 1; ny[i] = dx ? g : -g; nz[i] = d[i * 4 + 2] / 127.5 - 1; }
+  S.upNormal = { nx, ny, nz };
+}
+function activeNormal() {
+  if (S.upNormal && (!S.mogeNormal || $('nrmSrc').value === 'upload')) return S.upNormal;
+  return S.mogeNormal;
+}
+
+// ---------- passes ----------
+async function runPasses() {
+  if (!S.depthSess || !S.img || S.busy) return;
+  S.busy = true; S.cancel = false; updateButtons(); $('btnCancel').hidden = false;
+  const pr = $('runProg'); pr.hidden = false; pr.value = 0; const t0 = performance.now();
+  const chk = () => { if (S.cancel) throw new Error('cancelled'); };
+  try {
+    setupWorking();
+    const W = S.W, H = S.H, N = W * H, gRes = +$('globRes').value;
+    const doNormal = !!S.normalSess, nT = +$('nTiles').value, dT = +$('tileN').value;
+    const nTiles = doNormal && nT ? Core.tileGrid(W, H, nT, 0.33) : [], dTiles = dT ? Core.tileGrid(W, H, dT, 0.33) : [];
+    const steps = 1 + (doNormal ? (nTiles.length || 1) : 0) + dTiles.length; let done = 0;
+    const step = () => { done++; pr.value = done / steps; };
+    // 1) depth (global, square padded)
+    setStatus('runStatus', `Depth pass @${gRes}…`); await tick();
+    const T = Math.max(W, H), gt = { x0: Math.floor((W - T) / 2), y0: Math.floor((H - T) / 2), T };
+    { const d = await depthTTA(gt, gRes); S.depth = Core.sampleBack(d.out, d.res, gt, W, H).r; } step();
+    // 2) normals
+    S.mogeNormal = null;
+    if (doNormal) {
+      const L = 14 * Math.round(Math.sqrt(+$('nTok').value) * 1.0) * 1.15 | 0;    // feed res roughly matching decoder output
+      if (!nTiles.length) {
+        const k = Math.min(1, L * 1.2 / Math.max(W, H)), RW = Math.round(W * k / 2) * 2, RH = Math.round(H * k / 2) * 2;
+        setStatus('runStatus', `Normal pass ${RW}×${RH}…`); await tick(); chk();
+        const t = { x0: 0, y0: 0, TW: W, TH: H }, o = await normalTTA(t, RW, RH);
+        const smp = Core.samplePlanes(o, RW, RH, t, W, H); S.mogeNormal = Core.renormNormals(smp.rs); step();
+      } else {
+        const acc = [new Float32Array(N), new Float32Array(N), new Float32Array(N)], ws = new Float32Array(N);
+        const R = Math.min(1036, Math.max(518, L));
+        for (let i = 0; i < nTiles.length; i++) {
+          chk(); setStatus('runStatus', `Normal tile ${i + 1}/${nTiles.length} @${R}…`); await tick();
+          const o = await normalTTA(nTiles[i], R, R);
+          Core.accumulateNormalTile(acc, ws, W, H, nTiles[i], Core.samplePlanes(o, R, R, nTiles[i], W, H), 0.3); step();
+        }
+        S.mogeNormal = Core.renormNormals(acc);
+      }
+      S.mogeNormal = { nx: S.mogeNormal[0], ny: S.mogeNormal[1], nz: S.mogeNormal[2] };
+    }
+    // 3) optional depth tiles
+    S.depthTiles = null;
+    if (dTiles.length) {
+      const acc = new Float32Array(N), ws = new Float32Array(N), R = 728;
+      for (let i = 0; i < dTiles.length; i++) {
+        chk(); setStatus('runStatus', `Depth tile ${i + 1}/${dTiles.length}…`); await tick();
+        { const d = await depthTTA(dTiles[i], R); Core.accumulateTile(acc, ws, S.depth, W, H, dTiles[i], Core.sampleBack(d.out, d.res, dTiles[i], W, H), 0.3, S.preMask); } step();
+      }
+      for (let i = 0; i < N; i++) acc[i] = ws[i] > 0 ? acc[i] / ws[i] : S.depth[i];
+      S.depthTiles = acc;
+    }
+    const nsrc = activeNormal() === S.upNormal && S.upNormal ? 'uploaded normals' : (S.mogeNormal ? 'MoGe normals' : 'NO normals');
+    setStatus('runStatus', `Done in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${W}×${H} · depth + ${nsrc}${$('tta').checked ? ' · TTA' : ''}`, nsrc === 'NO normals' ? 'err' : 'ok');
+    setAutoCutoff(); enableTabs();
+    S.busy = false; await compose(false);
+    if (S.view === 'input') setView('relief');
+  } catch (e) { console.error(e); setStatus('runStatus', e.message === 'cancelled' ? 'Cancelled.' : 'Error: ' + (e.message || e), 'err'); }
+  finally { S.busy = false; pr.hidden = true; $('btnCancel').hidden = true; updateButtons(); }
+}
+function enableTabs() {
+  const has = { global: !!S.depth, normal: !!activeNormal(), tiles: !!S.depthTiles, mask: !!S.depth, relief: !!S.depth, shade: !!S.depth };
+  for (const k in has) document.querySelector(`.tab[data-v=${k}]`).disabled = !has[k];
+}
+
+// ---------- mask ----------
+function maskFromImage(img) {
+  const c = document.createElement('canvas'); c.width = S.W; c.height = S.H;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, S.W, S.H);
+  const d = x.getImageData(0, 0, S.W, S.H).data, N = S.W * S.H, f = new Float32Array(N);
+  for (let i = 0; i < N; i++) f[i] = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 765 * (d[i * 4 + 3] / 255);
+  return f;
+}
+function currentMask() {   // full working-res Uint8 mask or null
+  const src = $('maskSrc').value; if (src === 'off' || !S.depth) { $('maskInfo').textContent = ''; return null; }
+  let kind = src;
+  if (src === 'auto') kind = S.alpha ? 'alpha' : S.key ? 'key' : 'depth';
+  if (src === 'upload' && !S.upMaskImg) kind = 'depth';
+  const key = [kind, P.bgCutoff, P.maskClean].join('|');
+  if (S.maskCache && S.maskCache.key === key) return S.maskCache.M;
+  let M;
+  if (kind === 'alpha') M = Core.buildMask(S.alpha, S.W, S.H, P.bgCutoff, P.maskClean);
+  else if (kind === 'key') M = Core.buildMask(S.key.f, S.W, S.H, P.bgCutoff, P.maskClean);
+  else if (kind === 'upload') M = Core.buildMask(maskFromImage(S.upMaskImg), S.W, S.H, P.bgCutoff, P.maskClean);
+  else M = Core.buildMask(S.depthNorm, S.W, S.H, P.bgCutoff, P.maskClean);
+  let n = 0; for (let i = 0; i < M.length; i++) n += M[i];
+  $('maskInfo').textContent = `${kind === 'alpha' ? 'from alpha' : kind === 'key' ? 'from flat background rgb(' + S.key.color.join(',') + ')' : kind === 'upload' ? 'from uploaded mask' : 'from depth'} · subject ${(100 * n / M.length).toFixed(0)}%`;
+  S.maskCache = { key, M }; return M;
+}
+function baseDepth() { const v = $('baseSrc').value; return S.depthTiles && v !== 'global' ? S.depthTiles : S.depth; }
+function maskKind() {
+  const src = $('maskSrc').value;
+  if (src === 'auto') return S.alpha ? 'alpha' : S.key ? 'key' : 'depth';
+  if (src === 'upload' && !S.upMaskImg) return 'depth';
+  return src;
+}
+function setAutoCutoff() {
+  S.depthNorm = Core.normalize(baseDepth(), 0.5, 99.5);
+  const k = maskKind();
+  const t = k === 'key' && S.key ? +S.key.tol.toFixed(3) : k === 'alpha' || k === 'upload' ? 0.5 : +Core.otsu(S.depthNorm).toFixed(3);
+  setP('bgCutoff', t); $('v_bgCutoff').classList.remove('chg'); S.maskCache = null;
+}
+function downMask(M, w, h) { const f = down2(Float32Array.from(M), w, h), o = new Uint8Array(f.length); for (let i = 0; i < f.length; i++) o[i] = f[i] >= 0.5 ? 1 : 0; return o; }
+
+// ---------- compose ----------
+function down2(a, w, h) { const W = (w >> 2) * 2, H = (h >> 2) * 2, o = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = 2 * y * w + 2 * x; o[y * W + x] = 0.25 * (a[i] + a[i + 1] + a[i + w] + a[i + w + 1]); } return o; }
+function scheduleCompose() { if (!S.depth) return; clearTimeout(S.composeTimer); S.composeTimer = setTimeout(() => compose($('halfPrev').checked && Math.max(S.W, S.H) > 1100), 180); }
+async function compose(half) {
+  if (!S.depth) return null;
+  const seq = ++S.composeSeq;
+  setStatus('compStatus', half ? 'Computing preview (½ res)…' : 'Computing…'); await tick();
+  if (seq !== S.composeSeq) return null;
+  const t0 = performance.now(), nrm = activeNormal();
+  const M = currentMask();
+  const bd = baseDepth(), tl = bd === S.depthTiles ? null : S.depthTiles;
+  let w = S.W, h = S.H, inp = { w, h, depth: bd, depthTiles: tl, lum: S.lum, normal: nrm, mask: M };
+  const prm = { ...P, invert: $('invert').checked };
+  if (half) {
+    const W2 = (w >> 2) * 2, H2 = (h >> 2) * 2;
+    inp = { w: W2, h: H2, depth: down2(bd, w, h), depthTiles: tl && down2(tl, w, h), lum: down2(S.lum, w, h),
+      normal: nrm && { nx: down2(nrm.nx, w, h), ny: down2(nrm.ny, w, h), nz: down2(nrm.nz, w, h) }, mask: M && downMask(M, w, h) };
+    for (const k of PX_PARAMS) prm[k] = P[k] / 2;
+    w = W2; h = H2;
+  }
+  const H = Core.compose(inp, prm);
+  if (seq !== S.composeSeq) return null;
+  S.relief = H; S.reliefW = w; S.reliefH = h; S.reliefHalf = half;
+  setStatus('compStatus', `${w}×${h}${half ? ' preview' : ''} in ${((performance.now() - t0) / 1000).toFixed(2)} s${nrm ? '' : ' · no normals: depth only'}`);
+  if (S.view !== 'input') render();
+  updateButtons(); return H;
+}
+
+// ---------- render ----------
+const view = $('view'), vctx = view.getContext('2d');
+function drawGray(arr, w, h, norm) {
+  view.width = w; view.height = h; const a = norm ? Core.normalize(arr, 0.5, 99.5) : arr;
+  const im = vctx.createImageData(w, h), d = im.data;
+  for (let i = 0; i < w * h; i++) { const v = Math.max(0, Math.min(255, a[i] * 255)) | 0; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = 255; }
+  vctx.putImageData(im, 0, 0);
+}
+function normalImageData(n, w, h) {   // OpenGL-style colours
+  const im = new ImageData(w, h), d = im.data;
+  for (let i = 0; i < w * h; i++) { d[i * 4] = (n.nx[i] * 0.5 + 0.5) * 255; d[i * 4 + 1] = (-n.ny[i] * 0.5 + 0.5) * 255; d[i * 4 + 2] = (n.nz[i] * 0.5 + 0.5) * 255; d[i * 4 + 3] = 255; }
+  return im;
+}
+function drawDepth(a) {   // contrast from the subject only; background shown black when a mask is active
+  const M = currentMask() || S.preMask;
+  if (!M) return drawGray(a, S.W, S.H, true);
+  const n = Core.normalize(a, 0.5, 99.5, M); for (let i = 0; i < n.length; i++) if (!M[i]) n[i] = 0;
+  drawGray(n, S.W, S.H, false);
+}
+function render() {
+  const v = S.view; $('shadeCtl').hidden = v !== 'shade';
+  if (!S.img) return; $('empty').hidden = true; view.hidden = false;
+  if (v === 'input') { view.width = S.img.naturalWidth; view.height = S.img.naturalHeight; vctx.drawImage(S.img, 0, 0); return; }
+  if (v === 'global' && S.depth) drawDepth(S.depth);
+  else if (v === 'normal' && activeNormal()) { view.width = S.W; view.height = S.H; vctx.putImageData(normalImageData(activeNormal(), S.W, S.H), 0, 0); }
+  else if (v === 'tiles' && S.depthTiles) drawDepth(S.depthTiles);
+  else if (v === 'mask' && S.depth) {
+    drawGray(S.depthNorm, S.W, S.H, false); const M = currentMask();
+    if (M) { const im = vctx.getImageData(0, 0, S.W, S.H), d = im.data;
+      for (let i = 0; i < M.length; i++) if (!M[i]) { d[i * 4] = d[i * 4] * 0.4 + 150; d[i * 4 + 1] *= 0.35; d[i * 4 + 2] *= 0.35; }
+      vctx.putImageData(im, 0, 0); } }
+  else if (v === 'relief' && S.relief) drawGray(S.relief, S.reliefW, S.reliefH, false);
+  else if (v === 'shade' && S.relief) drawGray(Core.hillshade(S.relief, S.reliefW, S.reliefH, +$('zEx').value, +$('lightAz').value, 35), S.reliefW, S.reliefH, false);
+}
+function setView(v) { S.view = v; document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === v)); render(); }
+view.addEventListener('mousemove', e => {
+  if (!S.relief || !['relief', 'shade'].includes(S.view)) { $('readout').textContent = ''; return; }
+  const r = view.getBoundingClientRect(), x = Math.floor((e.clientX - r.left) / r.width * S.reliefW), y = Math.floor((e.clientY - r.top) / r.height * S.reliefH);
+  if (x >= 0 && y >= 0 && x < S.reliefW && y < S.reliefH) $('readout').textContent = `x ${x} y ${y} · height ${(S.relief[y * S.reliefW + x] * 100).toFixed(1)}%`;
+});
+
+// ---------- export ----------
+function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+async function exportPNG(bits) {
+  if (!S.depth) return;
+  setStatus('expStatus', 'Computing full-resolution relief…'); await tick();
+  let H = S.relief; if (S.reliefHalf || !H) { clearTimeout(S.composeTimer); H = await compose(false); } if (!H) return;
+  setStatus('expStatus', 'Encoding PNG…'); await tick();
+  const blob = await Core.encodePNG(H, S.reliefW, S.reliefH, bits), name = `${S.imgName}_relief_${S.reliefW}x${S.reliefH}_${bits}bit.png`;
+  download(blob, name); setStatus('expStatus', `Saved ${name} (${(blob.size / 1e6).toFixed(1)} MB).`, 'ok');
+}
+function exportNormal() {
+  const n = activeNormal(); if (!n) return;
+  const c = document.createElement('canvas'); c.width = S.W; c.height = S.H; c.getContext('2d').putImageData(normalImageData(n, S.W, S.H), 0, 0);
+  c.toBlob(b => { const name = `${S.imgName}_normal_GL_${S.W}x${S.H}.png`; download(b, name); setStatus('expStatus', 'Saved ' + name, 'ok'); }, 'image/png');
+}
+
+// ---------- io ----------
+function loadImageFile(file, cb) { const url = URL.createObjectURL(file), im = new Image(); im.onload = () => cb(im); im.onerror = () => setStatus('runStatus', 'Could not read image ' + file.name, 'err'); im.src = url; }
+function refreshThumbs() {
+  const t = $('thumbs'); t.innerHTML = '';
+  if (S.img) { const i = new Image(); i.src = S.img.src; i.title = 'clay image'; t.appendChild(i); }
+  if (S.nrmImg) { const i = new Image(); i.src = S.nrmImg.src; i.title = 'normal map'; t.appendChild(i); }
+}
+function onImage(file) {
+  loadImageFile(file, im => {
+    S.img = im; S.imgName = file.name.replace(/\.[^.]+$/, '') || 'relief';
+    S.depth = S.depthTiles = S.mogeNormal = S.relief = null; S.maskCache = null;
+    ['global', 'normal', 'tiles', 'mask', 'relief', 'shade'].forEach(v => document.querySelector(`.tab[data-v=${v}]`).disabled = true);
+    refreshThumbs(); setView('input'); updateButtons(); setStatus('runStatus', `${im.naturalWidth}×${im.naturalHeight} loaded.`);
+  });
+}
+function updateButtons() {
+  $('btnRun').disabled = !(S.depthSess && S.img) || S.busy;
+  $('btnRun').textContent = S.normalSess ? 'Run depth + normal passes' : (S.nrmImg ? 'Run depth pass (uploaded normals)' : 'Run passes');
+  $('btnPng16').disabled = $('btnPng8').disabled = !S.depth || S.busy;
+  $('btnNrmPng').disabled = !activeNormal() || S.busy;
+  $('btnClrNrm').hidden = $('nrmConv').hidden = !S.nrmImg;
+  $('nrmSrcRow').hidden = !(S.nrmImg && S.mogeNormal);
+}
+function normalChanged() { prepUploadNormal(); refreshThumbs(); updateButtons(); if (S.depth) enableTabs(); if (S.view === 'normal') render(); scheduleCompose(); }
+
+// ---------- wire ----------
+buildParams();
+$('btnLoadDepth').onclick = () => loadKind('depth');
+$('btnLoadNormal').onclick = () => loadKind('normal');
+$('fileDepth').onchange = e => e.target.files.length && loadLocal('depth', e.target.files);
+$('fileNormal').onchange = e => e.target.files.length && loadLocal('normal', e.target.files);
+const drop = $('dropImg');
+drop.onclick = () => $('fileImg').click();
+$('fileImg').onchange = e => e.target.files[0] && onImage(e.target.files[0]);
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) onImage(f); });
+$('fileNrm').onchange = e => { const f = e.target.files[0]; if (f) loadImageFile(f, im => { S.nrmImg = im; normalChanged(); }); };
+$('btnClrNrm').onclick = () => { S.nrmImg = null; $('fileNrm').value = ''; normalChanged(); };
+$('nrmConv').onchange = normalChanged;
+$('fileMask').onchange = e => { const f = e.target.files[0]; if (f) loadImageFile(f, im => { S.upMaskImg = im; S.maskCache = null; $('btnClrMask').hidden = false; $('maskSrc').value = 'upload'; if (S.view === 'mask') render(); scheduleCompose(); }); };
+$('btnClrMask').onclick = () => { S.upMaskImg = null; S.maskCache = null; $('fileMask').value = ''; $('btnClrMask').hidden = true; if (S.view === 'mask') render(); scheduleCompose(); };
+$('maskSrc').onchange = () => { S.maskUserSet = true; if (S.depth) setAutoCutoff(); S.maskCache = null; if (S.view === 'mask') render(); scheduleCompose(); };
+$('nrmSrc').onchange = () => { if (S.view === 'normal') render(); scheduleCompose(); };
+$('btnRun').onclick = runPasses;
+$('btnCancel').onclick = () => { S.cancel = true; };
+$('btnReset').onclick = resetParams;
+$('invert').onchange = scheduleCompose;
+$('baseSrc').onchange = () => { if (!S.depth) return; setAutoCutoff(); if (S.view === 'mask') render(); scheduleCompose(); };
+$('btnPng16').onclick = () => exportPNG(16);
+$('btnPng8').onclick = () => exportPNG(8);
+$('btnNrmPng').onclick = exportNormal;
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => !t.disabled && setView(t.dataset.v));
+$('zoom').onchange = e => $('stage').classList.toggle('zoom', e.target.checked);
+let shT = 0; ['lightAz', 'zEx'].forEach(id => $(id).oninput = () => { cancelAnimationFrame(shT); shT = requestAnimationFrame(render); });
+(async () => {
+  if (!navigator.gpu) { setStatus('gpuStat', `No WebGPU here${self.isSecureContext ? '' : ' (page is not a secure context – open via http://localhost or file)'}. Open this file in current Chrome or Edge, not an in-app preview. CPU fallback is slow and limited to small passes.`, 'err'); return; }
+  try {
+    const ad = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!ad) { setStatus('gpuStat', 'WebGPU exists but no GPU adapter was given – hardware acceleration is off, the GPU is blocklisted, or drivers are old. Check chrome://gpu.', 'err'); return; }
+    let info = ad.info || (ad.requestAdapterInfo ? await ad.requestAdapterInfo() : {});
+    const name = [info.vendor, info.architecture, info.description].filter(Boolean).join(' ') || 'GPU';
+    const f16 = ad.features.has('shader-f16'), mb = (ad.limits.maxBufferSize / 1048576) | 0;
+    setStatus('gpuStat', `WebGPU OK · ${name} · fp16 ${f16 ? 'yes' : 'NO (fp16 depth model may fall back to CPU – try q4f16 or a newer driver)'} · max buffer ${mb} MB`, f16 ? 'ok' : 'err');
+  } catch (e) { setStatus('gpuStat', 'WebGPU adapter request failed: ' + (e.message || e), 'err'); }
+})();
+if (typeof ort === 'undefined') setStatus('statDepth', 'Could not load onnxruntime-web from jsdelivr. Check your connection.', 'err');
+window.__relief = { S, P, Core, compose, runPasses, setView };
+})();
+</script>
+</body>
+</html>
