@@ -8,6 +8,7 @@
 Height maps and STLs for CNC, fibre-laser engraving, 3D printing and moulds, made in your browser.</p>
 
 <p align="center">
+  <a href="https://snazzygaz.github.io/DepthNormal/"><b>Open it</b></a> ·
   <a href="#get-it">Get it</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="docs/Relief-Forge-Basics.pdf">User guide (PDF)</a> ·
@@ -44,6 +45,7 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 | | |
 |---|---|
 | **Use in the browser** | [Open Relief Forge](https://snazzygaz.github.io/DepthNormal/) |
+| **Download** | Save [index.html](index.html) (or grab it from [Releases](../../releases)) and open it in Chrome |
 
 Open it in **Chrome** or **Edge**. No installation and no account are needed.
 
@@ -105,6 +107,6 @@ The full walkthrough, with every panel explained in plain English, is in the **[
 | three.js | three.js authors | MIT |
 | Manrope, IBM Plex Mono | Mikhail Sharanda; IBM | SIL Open Font Licence 1.1 |
 
-The AI models are downloaded from Hugging Face on first use and are not part of this repository. Full licence texts are on each project's page.
+The AI models are downloaded from Hugging Face on first use and are not part of this repository. Full details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); the app licence is in [LICENSE](LICENSE).
 
 > **Commercial use:** use Depth Anything 3 for depth. Depth Anything V2 Large/Base are for non-commercial use only.
