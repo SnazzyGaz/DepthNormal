@@ -43,7 +43,7 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 
 | | |
 |---|---|
-| **Use in the browser** | `https://snazzygaz.github.io/DepthNormal/` |
+| **Use in the browser** | [Open Relief Forge](https://snazzygaz.github.io/DepthNormal/) |
 
 Open it in **Chrome** or **Edge**. No installation and no account are needed.
 
