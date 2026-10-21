@@ -39,6 +39,11 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 - **Live 3D showroom** with materials (metals, wood, stone, resin…), lighting, and a "skin" view of your original picture on the model
 - **Export**: 16-bit PNG, STL (with optional silicone pour box and print-bed splitting), normal map, and `.relief` project files
 - **Mould mode**: invert and mirror for casting
+- **Preview as made** (specialist, in Export): simulates your CNC bit (ball-nose, tapered ball-nose, V-bit, flat), FDM or resin printer, or fibre/diode/CO₂ laser at your panel size and depth. Red marks material left where the tool can't reach, blue marks detail too thin to make; plus finishing stepover, layer or pass counts
+- **Mould draft**: leans steep walls outward by a set angle so casts release cleanly; only adds material at the foot of walls
+- **Base: Normals · anchored to depth**: integrates the normals while staying close to the depth map at broad scale (screened Poisson). Fine detail comes from the normals, front-to-back order from the depth, so faces no longer tilt or bowl. *Depth anchoring size* sets the crossover
+- **Remove patch grid from normals** (Generate, on by default): finds and subtracts the faint square lattice the normal model leaves on flat backgrounds
+- **Recommended** preset group (first in the list; older presets kept under Legacy): five presets chosen by testing ~180 setting combinations on 7 real projects, then checked on 15 more. New images start from *Anchored · all-rounder*; presets keep your edge settings
 
 ## Get it
 

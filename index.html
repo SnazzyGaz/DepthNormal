@@ -200,6 +200,12 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 .bar input[type=number]{width:72px;padding:4px 6px}
 .bar select{padding:4px 6px}
 .bar .grp3{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.spec>summary{list-style:none;cursor:pointer}.spec>summary::-webkit-details-marker{display:none}
+.spec>summary h3{margin:0}.spec>summary h3::after{content:"+";font-size:14px;color:var(--mute)}.spec[open]>summary h3::after{content:"–"}.spec[open]>summary{margin-bottom:9px}
+.mkv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px 10px;align-items:center;margin:8px 0 10px}
+.mkv .mrow{display:contents}.mkv .mrow[hidden]{display:none}.mkv .mrow>span:first-child{font-size:12px;color:var(--ink2)}
+.mkv select,.mkv input{width:100%;min-width:0}.mkv .unit{display:flex;align-items:center;gap:6px}
+#millStatus{flex-basis:100%}
 #readout{margin-left:auto;font-family:var(--mono);font-size:11.5px}
 #compStatus{margin:0}
 .busybar{position:relative;width:120px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;flex:none}
@@ -286,6 +292,7 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
       </div>
       <label class="chk"><input type="checkbox" id="tta" checked> Flip averaging <span class="help">(2× time, cleaner)</span></label>
       <label class="chk" title="Compares the normals with the depth map and flips an axis if it points the wrong way."><input type="checkbox" id="autoNrm" checked> Auto-check normal direction</label>
+      <label class="chk" title="Normal models leave a faint square lattice (one cell per image patch) that shows as a waffle texture on flat backgrounds. This finds the lattice and subtracts it; real detail is kept. Does nothing if no lattice is found."><input type="checkbox" id="gridNrm" checked> Remove patch grid from normals <span class="help" id="gridInfo"></span></label>
       <div class="help" style="margin-top:8px">Tiles let the models see small details larger, so fine parts come out crisper. Depth tiles also make a strong base.</div>
     </div>
     <div class="card">
@@ -336,7 +343,7 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 
     <div class="card">
       <h3>Base &amp; pre layers <span class="gbadge" id="cb_layers"></span></h3>
-      <div class="kv"><span>Base height map</span><select id="baseSrc"><option value="auto" selected>Auto (tiles if run)</option><option value="tiles">Depth tiles</option><option value="global">Global depth</option><option value="normals">Normals (integrated)</option><option value="normalsFloor">Normals · background at 0</option></select></div>
+      <div class="kv"><span>Base height map</span><select id="baseSrc"><option value="auto" selected>Auto (tiles if run)</option><option value="tiles">Depth tiles</option><option value="global">Global depth</option><option value="normalsAnchored">Normals · anchored to depth</option><option value="normals">Normals (integrated)</option><option value="normalsFloor">Normals · background at 0</option></select></div>
       <div class="lhead" title="Blended into the base height map before Shape: fusion and levelling then work on the blend."><span>Pre layers · before Shape</span><button id="addPre" class="mini ghost">+ Add</button></div>
       <div id="layPre"></div>
     </div>
@@ -427,6 +434,26 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
       <div class="row"><button id="btnSaveProj" class="grow" disabled>Save project</button></div>
       <div class="status" id="saveStatus"></div>
     </div>
+    <details class="card spec" id="makeCard">
+      <summary><h3>Preview as made <span class="pill">specialist</span></h3></summary>
+      <p class="lead">Simulates your CNC bit, printer or laser at the panel size and depth above. Red: material left where the tool can't reach. Blue: detail too thin to make. Preview only: exports keep the full design.</p>
+      <div class="mkv">
+        <label class="mrow"><span>Process</span><select id="mProc"><option value="cnc" selected>CNC router</option><option value="fdm">3D print · FDM</option><option value="resin">3D print · resin</option><option value="laser">Laser engrave</option></select></label>
+        <label class="mrow mp" data-p="cnc"><span>Bit</span><select id="mTool"><option value="ball" selected>Ball-nose</option><option value="taper">Tapered ball-nose</option><option value="vbit">V-bit</option><option value="flat">Flat end</option></select></label>
+        <label class="mrow mp" id="mDiaL" data-p="cnc"><span>Diameter</span><span class="unit"><input type="number" id="mDia" value="3" min="0.1" max="25" step="0.1"> mm</span></label>
+        <label class="mrow mp" id="mTipL" hidden data-p="cnc"><span>Tip diameter</span><span class="unit"><input type="number" id="mTip" value="0.5" min="0" max="6" step="0.05"> mm</span></label>
+        <label class="mrow mp" id="mAngL" hidden data-p="cnc"><span>Included angle</span><span class="unit"><select id="mAng"><option>30</option><option selected>60</option><option>90</option><option>120</option></select> °</span></label>
+        <label class="mrow mp" id="mTapL" hidden data-p="cnc"><span>Taper per side</span><span class="unit"><select id="mTap"><option value="1">1</option><option value="2.5">2.5</option><option value="3.6" selected>3.6</option><option value="5">5</option><option value="10">10</option></select> °</span></label>
+        <label class="mrow mp" hidden data-p="fdm"><span>Layer height</span><span class="unit"><select id="fLayer"><option>0.08</option><option>0.12</option><option>0.16</option><option selected>0.2</option><option>0.28</option></select> mm</span></label>
+        <label class="mrow mp" hidden data-p="fdm"><span>Line width</span><span class="unit"><select id="fLine"><option>0.25</option><option selected>0.4</option><option>0.6</option><option>0.8</option></select> mm</span></label>
+        <label class="mrow mp" hidden data-p="resin"><span>Layer height</span><span class="unit"><select id="rLayer"><option>0.025</option><option selected>0.05</option><option>0.1</option></select> mm</span></label>
+        <label class="mrow mp" hidden data-p="resin"><span>XY pixel</span><span class="unit"><select id="rXY"><option>0.022</option><option>0.035</option><option selected>0.05</option></select> mm</span></label>
+        <label class="mrow mp" hidden data-p="laser"><span>Laser</span><select id="lType"><option value="fibre" selected>Fibre</option><option value="diode">Diode</option><option value="co2">CO₂</option></select></label>
+        <label class="mrow mp" hidden data-p="laser"><span>Spot</span><span class="unit"><input type="number" id="lSpot" value="0.03" min="0.005" max="1" step="0.005"> mm</span></label>
+        <label class="mrow mp" hidden data-p="laser"><span>Depth per pass</span><span class="unit"><input type="number" id="lPass" value="0.01" min="0.001" max="1" step="0.005"> mm</span></label>
+      </div>
+      <div class="row"><button id="btnGoMill" class="grow" disabled>Show preview</button></div>
+    </details>
     <div class="card">
       <h3>Check in 3D</h3>
       <p class="lead">Open the <b>3D</b> view above the preview to inspect the relief at real size before cutting.</p>
@@ -481,6 +508,11 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
     <span id="shadeCtl" class="grp3" hidden>
       <label>Light <input type="range" id="lightAz" min="0" max="360" value="315"></label>
       <label>Relief <input type="range" id="zEx" min="0.005" max="0.2" step="0.005" value="0.04"></label>
+    </span>
+    <span id="millCtl" class="grp3" hidden>
+      <label>Show <select id="mShow"><option value="left" selected>Differences</option><option value="milled">As made</option><option value="design">Design</option></select></label>
+      <button id="btnMillBack" class="mini ghost">Back to height map</button>
+      <span class="status" id="millStatus"></span>
     </span>
     <span id="ctl3d" class="grp3" hidden>
       <label>Width <input type="number" id="w3d" value="200" min="10" max="5000" step="5"> mm</label>
@@ -651,7 +683,14 @@ const Core = (() => {
 
   // Solve Laplacian(h) = div(gx,gy), Neumann, via DCT on power-of-2 padded grid
   function poisson(gx, gy, w, h) {
-    if (w % 2 || h % 2) throw new Error('poisson needs even dims');
+    if (w % 2 || h % 2) {   // pad odd sizes by one row/column, solve, crop
+      const W2 = w + (w & 1), H2 = h + (h & 1), ax = new Float32Array(W2 * H2), ay = new Float32Array(W2 * H2);
+      // the extra row/column repeats the last one (same along-edge slopes, zero slope across), so the padded field is consistent
+      for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) { const sy = Math.min(y, h - 1), sx = Math.min(x, w - 1), j = sy * w + sx;
+        ax[y * W2 + x] = x < w - 1 ? gx[j] : 0; ay[y * W2 + x] = y < h - 1 ? gy[j] : 0; }
+      const full = poisson(ax, ay, W2, H2), o = new Float32Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) o[y * w + x] = full[y * W2 + x];
+      return o; }
     const W = w, H = h;
     const f = new Float64Array(W * H);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -1297,6 +1336,7 @@ const Core = (() => {
       if (M) lo = 0;
       if (hi - lo > 1e-6) { const k = 1 / (hi - lo); for (let i = 0; i < N; i++) if (!M || M[i]) H[i] = Math.min(1, Math.max(0, (H[i] - lo) * k)); }
     }
+    if (P.draft > 0 && P.physW > 0 && P.physD > 0) H = draftLimit(H, w, h, P.physW, P.physD, P.draft);   // mould draft, in real units
     if (P.invert) for (let i = 0; i < N; i++) H[i] = 1 - H[i];
     H.histIn = histIn; H.histOut = histogram(H, M);
     return H;
@@ -1658,7 +1698,255 @@ const Core = (() => {
     return { cx: sxa / Math.sqrt(sxx * saa + 1e-30), cy: syb / Math.sqrt(syy * sbb + 1e-30) };
   }
 
-  return { composeShape, composeFinish, composeTail, curveLUT, guidedSmooth, fieldFloor, floorFill, edt, buildSTL, stlTriangles, zipBuild, zipList, inflate, decodePNG, resample, integrateNormals, normalsVsDepth, crc32: crc, blur, grad, poisson, poissonMasked, maskedBlur, otsu, buildMask, labels, distInside, makeDCT, normalize, percentile, compose, tileGrid, featherW, samplePlanes, sampleBack, accumulateTile, accumulateNormalTile, renormNormals, hillshade, toHalf, fromHalf, encodePNG };
+  // ---------- making: what a process can actually produce ----------
+  // Cone envelope over a field, by a 5×5 chamfer propagation (two passes, O(N)):
+  //   isMax: out(p) = max_q f(q) − k·|p−q|     else: out(p) = min_q f(q) + k·|p−q|
+  // k is height per pixel of lateral distance. The 16-direction chamfer is within ~2% of true Euclidean distance.
+  const CH5 = [[-1, 0, 1], [0, -1, 1], [-1, -1, Math.SQRT2], [1, -1, Math.SQRT2], [-2, -1, Math.sqrt(5)], [-1, -2, Math.sqrt(5)], [1, -2, Math.sqrt(5)], [2, -1, Math.sqrt(5)]];
+  function coneEnvelope(f, w, h, k, isMax) {
+    const A = Float32Array.from(f);
+    for (const sg of [1, -1]) {
+      const off = CH5.map(([dx, dy, d]) => [sg * dx, sg * dy, d * k]);
+      for (let yy = 0; yy < h; yy++) { const y = sg > 0 ? yy : h - 1 - yy;
+        for (let xx = 0; xx < w; xx++) { const x = sg > 0 ? xx : w - 1 - xx, i = y * w + x; let v = A[i];
+          for (let o = 0; o < 8; o++) { const X = x + off[o][0], Y = y + off[o][1]; if (X < 0 || Y < 0 || X >= w || Y >= h) continue;
+            const c = isMax ? A[Y * w + X] - off[o][2] : A[Y * w + X] + off[o][2]; if (isMax ? c > v : c < v) v = c; }
+          A[i] = v; } }
+    }
+    return A;
+  }
+  // Grey dilation (max f(x+d) − b(d)) or erosion (min f(x+d) + b(d)) over a disc of radius R px with profile b(d) (height,
+  // rising away from the centre; b ≡ 0 is a flat disc). Out-of-frame samples are skipped.
+  function discOp(f, w, h, R, bOf, dil) {
+    if (!(R >= 0.5)) return Float32Array.from(f);
+    const r = Math.ceil(R), ox = [], oy = [], ob = [];
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const d = Math.hypot(dx, dy); if (d <= R + 1e-9) { ox.push(dx); oy.push(dy); ob.push(bOf(d)); } }
+    const n = ox.length, o = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const inner = x >= r && y >= r && x < w - r && y < h - r; let v = dil ? -1e30 : 1e30;
+      for (let k = 0; k < n; k++) { const X = x + ox[k], Y = y + oy[k]; if (!inner && (X < 0 || Y < 0 || X >= w || Y >= h)) continue;
+        const c = dil ? f[Y * w + X] - ob[k] : f[Y * w + X] + ob[k]; if (dil ? c > v : c < v) v = c; }
+      o[y * w + x] = v; }
+    return o;
+  }
+  // A tool = an optional round tip (flat disc or ball of radius tipR px) Minkowski-summed with an optional cone of slope k
+  // (height per px). Closing by it (dilate, then erode) = the lowest surface that tool can leave from above without
+  // cutting into the design. Sequential dilations/erosions by the parts = one by their Minkowski sum.
+  function toolClose(Z, w, h, t) {
+    const tip = t.tipR > 0 ? (t.ball ? (d => { const r = t.tipRmm, x = d * t.pxMM; return r - Math.sqrt(Math.max(0, r * r - x * x)); }) : () => 0) : null;
+    let T = Z;
+    if (tip) T = discOp(T, w, h, t.tipR, tip, true);
+    if (t.k > 0) T = coneEnvelope(T, w, h, t.k, true);
+    let S = T;
+    if (t.k > 0) S = coneEnvelope(S, w, h, t.k, false);
+    if (tip) S = discOp(S, w, h, t.tipR, tip, false);
+    return S;
+  }
+  // Simulate making the relief H (0..1 → depthMM, on a panel widthMM wide).
+  // o.process: 'cnc' { bit: 'ball'|'flat'|'vbit'|'taper', diaMM (ball/flat), tipMM (vbit/taper), angleDeg (vbit: included;
+  //            taper: per side) } · 'laser' { spotMM, wallDeg (beam wall angle from vertical), passMM (depth per pass) } ·
+  //            'fdm' { layerMM, lineMM } · 'resin' { layerMM, xyMM }
+  // Returns { S (0..1 as made), diff (mm, + = extra material left, − = material missing), stats }.
+  function makeSim(H, w, h, o) {
+    const N = w * h, D = o.depthMM, Z0 = new Float32Array(N);
+    for (let i = 0; i < N; i++) Z0[i] = Math.min(1, Math.max(0, H[i])) * D;
+    const proc = o.process || 'cnc', tol = o.tolMM == null ? (proc === 'fdm' ? 0.1 : 0.05) : o.tolMM;
+    // margin so tools can travel past the frame edge (the stock outside is at the floor)
+    let px = o.widthMM / w, tipMM = 0, ball = false, k = 0, step = 0, xy = 0;
+    if (proc === 'cnc') {
+      const b = o.bit || 'ball';
+      if (b === 'ball') { tipMM = o.diaMM / 2; ball = true; }
+      else if (b === 'flat') tipMM = o.diaMM / 2;
+      else if (b === 'vbit') { tipMM = (o.tipMM || 0) / 2; k = 1 / Math.tan(Math.max(1, o.angleDeg) / 2 * Math.PI / 180); }
+      else if (b === 'taper') { tipMM = Math.max(0.01, (o.tipMM || 0.5) / 2); ball = true; k = 1 / Math.tan(Math.max(0.5, o.angleDeg) * Math.PI / 180); }
+    } else if (proc === 'laser') { tipMM = (o.spotMM || 0.05) / 2; k = 1 / Math.tan(Math.max(1, o.wallDeg || 10) * Math.PI / 180); step = o.passMM || 0.01; }
+    else if (proc === 'fdm') { step = o.layerMM || 0.2; xy = (o.lineMM || 0.4) / 2; }
+    else if (proc === 'resin') { step = o.layerMM || 0.05; xy = (o.xyMM || 0.05) / 2; }
+    // big round tools: work on a coarser grid (max-pooled, so peaks are kept); detail that fine is lost anyway
+    const cap = o.maxR || 12, Rpx = Math.max(tipMM, xy) / px, f = Rpx > cap ? Math.ceil(Rpx / cap) : 1;
+    let Z = Z0, ww = w, hh = h;
+    if (f > 1) { ww = Math.ceil(w / f); hh = Math.ceil(h / f); Z = new Float32Array(ww * hh);
+      for (let y = 0; y < hh; y++) for (let x = 0; x < ww; x++) { let m = 0;
+        for (let j = 0; j < f; j++) for (let i = 0; i < f; i++) { const X = Math.min(w - 1, x * f + i), Y = Math.min(h - 1, y * f + j); if (Z0[Y * w + X] > m) m = Z0[Y * w + X]; }
+        Z[y * ww + x] = m; }
+      px *= f; }
+    // pad with floor so a tool can pass beyond the frame
+    const pad = Math.min(160, Math.ceil(Math.max(tipMM, xy) / px) + (k > 0 ? Math.ceil(D / k / px) : 0) + 4);
+    const W = ww + 2 * pad, Hh = hh + 2 * pad, Zp = new Float32Array(W * Hh);
+    for (let y = 0; y < hh; y++) Zp.set(Z.subarray(y * ww, y * ww + ww), (y + pad) * W + pad);
+    let Sp;
+    if (proc === 'fdm' || proc === 'resin') {
+      // each layer is a flat slice: round to the layer grid, then lines narrower than the nozzle line / resin pixel can't
+      // stand (opening) and gaps narrower than it fill in (closing). Flat-disc grey ops act on every slice at once.
+      Sp = new Float32Array(W * Hh); for (let i = 0; i < W * Hh; i++) Sp[i] = Math.round(Zp[i] / step) * step;
+      const R = xy / px;
+      if (R >= 0.5) { const z = () => 0; Sp = discOp(discOp(Sp, W, Hh, R, z, false), W, Hh, R, z, true); Sp = discOp(discOp(Sp, W, Hh, R, z, true), W, Hh, R, z, false); }
+    } else {
+      Sp = toolClose(Zp, W, Hh, { tipR: tipMM / px, tipRmm: tipMM, ball, pxMM: px, k: k * px });
+      if (step > 0) for (let i = 0; i < W * Hh; i++) Sp[i] = Math.min(D, Math.ceil(Sp[i] / step - 1e-6) * step);   // laser: whole passes only
+    }
+    let S = new Float32Array(ww * hh); for (let y = 0; y < hh; y++) S.set(Sp.subarray((y + pad) * W + pad, (y + pad) * W + pad + ww), y * ww);
+    if (f > 1) { S = resample(S, ww, hh, w, h); if (proc !== 'fdm' && proc !== 'resin') for (let i = 0; i < N; i++) S[i] = Math.max(S[i], Z0[i]); }
+    const diff = new Float32Array(N), H01 = new Float32Array(N); let area = 0, ext = 0, mis = 0, mx = 0, mn = 0;
+    for (let i = 0; i < N; i++) { const d = S[i] - Z0[i]; diff[i] = d; H01[i] = D > 0 ? S[i] / D : 0;
+      if (Z0[i] > 1e-6 || S[i] > 1e-6) { area++; if (d > tol) ext++; else if (d < -tol) mis++; if (d > mx) mx = d; if (d < mn) mn = d; } }
+    const stats = { process: proc, tolMM: tol, pxMM: o.widthMM / w, extra: area ? ext / area : 0, missing: area ? mis / area : 0, maxExtra: mx, maxMissing: -mn };
+    if (proc === 'cnc' && (o.bit || 'ball') === 'ball') stats.stepover = stepoverFor(o.diaMM, 0.02);
+    if (proc === 'cnc' && (o.bit === 'vbit' || o.bit === 'taper')) stats.stepover = o.bit === 'vbit' ? 2 * 0.02 * Math.tan(o.angleDeg / 2 * Math.PI / 180) : stepoverFor(Math.max(0.02, o.tipMM), 0.02);
+    if (step > 0) stats.steps = Math.ceil(D / step);
+    return { S: H01, diff, stats };
+  }
+  // old name, kept for anything that still calls it
+  function millSim(H, w, h, o) { const r = makeSim(H, w, h, { process: 'cnc', bit: o.tool === 'vbit' ? 'vbit' : o.tool, diaMM: o.diaMM, angleDeg: o.angleDeg, tipMM: 0, widthMM: o.widthMM, depthMM: o.depthMM, tolMM: o.tolMM, maxR: o.maxR });
+    const left = r.diff.map(v => Math.max(0, v)); return { S: r.S, left, stats: { frac: r.stats.extra, maxMM: r.stats.maxExtra, tolMM: r.stats.tolMM, pxMM: r.stats.pxMM } }; }
+  // stepover (mm) between passes of a ball-nose of diameter dia that leaves ridges (scallops) no taller than cusp
+  function stepoverFor(diaMM, cuspMM) { const r = diaMM / 2, c = Math.min(cuspMM, r); return 2 * Math.sqrt(Math.max(0, 2 * r * c - c * c)); }
+  // Mould draft: no wall steeper than (90° − draft) from horizontal. Adds material at the foot of steep walls (a cone of that
+  // slope under every point), never lowers anything, so detail on tops and in the field is untouched.
+  function draftLimit(H, w, h, widthMM, depthMM, draftDeg) {
+    if (!(draftDeg > 0) || !(depthMM > 0)) return H;
+    const px = widthMM / w, k = px / (depthMM * Math.tan(draftDeg * Math.PI / 180));   // allowed rise per pixel, in 0..1 height units
+    const E = coneEnvelope(H, w, h, k, true), o = new Float32Array(H.length);
+    for (let i = 0; i < H.length; i++) o[i] = Math.min(1, Math.max(H[i], E[i]));
+    return o;
+  }
+
+  // ---------- screened Poisson: integrate slopes while staying close to a reference height ----------
+  // Minimises Σ|∇h − g|² + λ·Σ(h − ref)². Small λ: shape from the slopes, broad level from the reference.
+  // The crossover length is ~1/√λ px: forms larger than that follow ref (the depth), smaller ones follow the slopes (normals).
+  function screenedDCT(gx, gy, w, h, ref, lam) {   // no mask, even sizes
+    const f = new Float64Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x;
+      f[i] = gx[i] - (x > 0 ? gx[i - 1] : 0) + gy[i] - (y > 0 ? gy[i - w] : 0) - lam * ref[i]; }
+    const dx = makeDCT(w), dy = makeDCT(h), row = new Float64Array(w), rowo = new Float64Array(w), col = new Float64Array(h), colo = new Float64Array(h);
+    for (let y = 0; y < h; y++) { const o = y * w; for (let x = 0; x < w; x++) row[x] = f[o + x]; dx.fwd(row, rowo); for (let x = 0; x < w; x++) f[o + x] = rowo[x]; }
+    for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) col[y] = f[y * w + x]; dy.fwd(col, colo); for (let y = 0; y < h; y++) f[y * w + x] = colo[y]; }
+    for (let l = 0; l < h; l++) for (let k = 0; k < w; k++) { const d = 2 * Math.cos(Math.PI * k / w) - 2 + 2 * Math.cos(Math.PI * l / h) - 2 - lam; f[l * w + k] /= d; }
+    for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) col[y] = f[y * w + x]; dy.inv(col, colo); for (let y = 0; y < h; y++) f[y * w + x] = colo[y]; }
+    const out = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) { const o = y * w; for (let x = 0; x < w; x++) row[x] = f[o + x]; dx.inv(row, rowo); for (let x = 0; x < w; x++) out[o + x] = rowo[x]; }
+    return out;
+  }
+  // masked version: conjugate gradients on the edge graph (as cgEdges) with λ on the diagonal, started from `init`
+  function screenedCG(Gx, Gy, Ex, Ey, w, h, ref, lam, init, iters, tol) {
+    const N = w * h, id = new Int32Array(N).fill(-1); let n = 0;
+    for (let i = 0; i < N; i++) if (Ex[i] || Ey[i] || (i % w > 0 && Ex[i - 1]) || (i >= w && Ey[i - w])) id[i] = n++;
+    const pix = new Int32Array(n), E = new Int32Array(n), Wn = new Int32Array(n), S = new Int32Array(n), Nn = new Int32Array(n);
+    for (let k = 0; k < n; k++) E[k] = Wn[k] = S[k] = Nn[k] = k;
+    const wE = new Float32Array(n), wW = new Float32Array(n), wS = new Float32Array(n), wN = new Float32Array(n), deg = new Float64Array(n), b = new Float64Array(n), x = new Float64Array(n);
+    for (let i = 0; i < N; i++) { const k = id[i]; if (k < 0) continue; pix[k] = i; x[k] = init ? init[i] : ref[i]; const li = typeof lam === 'number' ? lam : lam[i]; deg[k] += li; b[k] += li * ref[i];
+      if (Ex[i]) { const j = id[i + 1], a = Ex[i]; E[k] = j; Wn[j] = k; wE[k] = a; wW[j] = a; deg[k] += a; deg[j] += a; b[k] -= a * Gx[i]; b[j] += a * Gx[i]; }
+      if (Ey[i]) { const j = id[i + w], a = Ey[i]; S[k] = j; Nn[j] = k; wS[k] = a; wN[j] = a; deg[k] += a; deg[j] += a; b[k] -= a * Gy[i]; b[j] += a * Gy[i]; } }
+    const r = new Float64Array(n), z = new Float64Array(n), p = new Float64Array(n), q = new Float64Array(n);
+    const Ax = (v, o) => { let dot = 0; for (let k = 0; k < n; k++) { const s = deg[k] * v[k] - wE[k] * v[E[k]] - wW[k] * v[Wn[k]] - wS[k] * v[S[k]] - wN[k] * v[Nn[k]]; o[k] = s; dot += v[k] * s; } return dot; };
+    Ax(x, q); let bn = 0, rz = 0;
+    for (let k = 0; k < n; k++) { r[k] = b[k] - q[k]; bn += b[k] * b[k]; z[k] = r[k] / deg[k]; p[k] = z[k]; rz += r[k] * z[k]; }
+    bn = Math.sqrt(bn) || 1;
+    for (let it = 0; it < iters; it++) { const pq = Ax(p, q); if (Math.abs(pq) < 1e-30) break; const al = rz / pq; let rn = 0, rz2 = 0;
+      for (let k = 0; k < n; k++) { x[k] += al * p[k]; const rk = r[k] - al * q[k]; r[k] = rk; rn += rk * rk; const zk = rk / deg[k]; z[k] = zk; rz2 += rk * zk; }
+      if (Math.sqrt(rn) / bn < tol) break; const be = rz2 / rz; rz = rz2; for (let k = 0; k < n; k++) p[k] = z[k] + be * p[k]; }
+    const out = Float32Array.from(ref); for (let k = 0; k < n; k++) out[pix[k]] = x[k]; return out;
+  }
+  // Integrate normals (slopes p,q) anchored to a depth map: the depth is first scaled to the normals' height units by a
+  // least-squares fit at broad scale, then the screened solve keeps the normals' detail and the depth's front-to-back order.
+  // ell = crossover length in px (forms wider than ~ell follow the depth). M optional mask.
+  function normalsAnchored(nx, ny, nz, depth, w, h, M, ell, cap = 3) {
+    const N = w * h, p = new Float32Array(N), q = new Float32Array(N);
+    for (let i = 0; i < N; i++) { const z = Math.max(1e-3, nz[i]); p[i] = Math.max(-cap, Math.min(cap, -nx[i] / z)); q[i] = Math.max(-cap, Math.min(cap, -ny[i] / z)); }
+    const gx = new Float32Array(N), gy = new Float32Array(N);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (x < w - 1) gx[i] = 0.5 * (p[i] + p[i + 1]); if (y < h - 1) gy[i] = 0.5 * (q[i] + q[i + w]); }
+    // plain integration first (gives the height units), then fit depth to it at broad scale
+    const H0 = integrateNormals(nx, ny, nz, w, h, cap, M, depth, false), s0 = Math.max(4, ell);
+    const A = M ? maskedBlur(H0, M, w, h, s0) : blur(H0, w, h, s0), Bd = M ? maskedBlur(depth, M, w, h, s0) : blur(depth, w, h, s0);
+    let sa = 0, sb = 0, sab = 0, sbb = 0, n = 0;
+    for (let i = 0; i < N; i += 2) { if (M && !M[i]) continue; sa += A[i]; sb += Bd[i]; sab += A[i] * Bd[i]; sbb += Bd[i] * Bd[i]; n++; }
+    const vb = sbb / n - (sb / n) ** 2, sc = vb > 1e-12 ? (sab / n - sa * sb / (n * n)) / vb : 0, of = sa / n - sc * sb / n;
+    const ref = new Float32Array(N); for (let i = 0; i < N; i++) ref[i] = sc * depth[i] + of;
+    const lam = 1 / (ell * ell);
+    if (!M) { if (w % 2 || h % 2) return H0; return screenedDCT(gx, gy, w, h, ref, lam); }
+    // masked: H = H0 + c, where the correction c solves (λ − Δ)c = λ(ref − H0) with Neumann walls at the outline. c only
+    // carries forms wider than ~ell, so it is solved on a grid shrunk by f and scaled back up.
+    const f = Math.max(1, Math.floor(ell / 8)), wc = Math.ceil(w / f), hc = Math.ceil(h / f), Nc = wc * hc;
+    const rs = new Float32Array(Nc), cn = new Float32Array(Nc), Mc = new Uint8Array(Nc);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (!M[i]) continue; const j = ((y / f) | 0) * wc + ((x / f) | 0); rs[j] += ref[i] - H0[i]; cn[j]++; }
+    for (let j = 0; j < Nc; j++) if (cn[j] > 0) { rs[j] /= cn[j]; Mc[j] = 1; }   // any coverage counts, so thin tips have their own cell
+    const Ex = new Uint8Array(Nc), Ey = new Uint8Array(Nc);
+    for (let j = 0; j < Nc; j++) { if (!Mc[j]) continue; if (j % wc < wc - 1 && Mc[j + 1]) Ex[j] = 1; if (j + wc < Nc && Mc[j + wc]) Ey[j] = 1; }
+    // depth models smear thin parts into the background, so the depth is least trustworthy near the outline: the anchor
+    // strength fades to 2% within ~ell of the edge (thin tips then simply follow the normals from the body they hang off)
+    const dist = edt(M, w, h, true), wsum = new Float32Array(Nc);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (!M[i]) continue; const t = Math.min(1, dist[i] / ell); wsum[((y / f) | 0) * wc + ((x / f) | 0)] += t * t; }
+    const z0 = new Float32Array(Nc), lamc = new Float32Array(Nc);
+    for (let j = 0; j < Nc; j++) lamc[j] = Mc[j] ? lam * f * f * Math.max(0.02, wsum[j] / cn[j]) : 0;
+    let c = screenedCG(z0, z0, Ex, Ey, wc, hc, rs, lamc, z0, 3000, 1e-7);
+    for (let j = 0; j < Nc; j++) if (Mc[j] && !(Ex[j] || Ey[j] || (j % wc > 0 && Ex[j - 1]) || (j >= wc && Ey[j - wc]))) c[j] *= Math.max(0.02, wsum[j] / cn[j]);   // lone cells
+    for (let j = 0; j < Nc; j++) if (!Mc[j]) c[j] = 0;
+    // scale up by bilinear weights over subject cells only (normalised), so values never come from outside the subject:
+    // extrapolating into empty cells made spikes at thin tips
+    const out = new Float32Array(N);
+    for (let y = 0; y < h; y++) { const gy = (y + 0.5) / f - 0.5, y0 = Math.floor(gy), ty = gy - y0;
+      for (let x = 0; x < w; x++) { const i = y * w + x; if (!M[i]) continue; const gx = (x + 0.5) / f - 0.5, x0 = Math.floor(gx), tx = gx - x0;
+        let s = 0, ws = 0;
+        for (let dy = 0; dy < 2; dy++) { const Y = y0 + dy; if (Y < 0 || Y >= hc) continue; const wy = dy ? ty : 1 - ty;
+          for (let dx = 0; dx < 2; dx++) { const X = x0 + dx; if (X < 0 || X >= wc) continue; const j = Y * wc + X; if (!Mc[j]) continue; const wgt = wy * (dx ? tx : 1 - tx); s += wgt * c[j]; ws += wgt; } }
+        out[i] = H0[i] + (ws > 1e-6 ? s / ws : c[((y / f) | 0) * wc + ((x / f) | 0)]); } }
+    return out;
+  }
+
+
+  // ---------- patch-grid cleanup for model normals ----------
+  // ViT-based normal models leave a faint square lattice (one cell per image patch) that shows up as a waffle texture on
+  // flat fields. The lattice period is found by folding high-passed rows/columns at trial periods, per 256 px block
+  // (tiles put it at different offsets). Then, in overlapping blocks, the average high-pass value at each phase of the
+  // lattice (measured on flat-facing pixels only, so real detail isn't averaged in) is the lattice itself and is subtracted.
+  // Returns null when no lattice stands out (strength < minStrength).
+  function gridDetect(a, w, h, B = 256) {
+    const lo = blur(a, w, h, 6), b = new Float32Array(w * h); for (let i = 0; i < b.length; i++) b[i] = a[i] - lo[i];
+    const Ts = []; for (let T = 6; T <= 48; T += 0.05) Ts.push(T);
+    const sc = new Float64Array(Ts.length), cs = Ts.map(T => { const c = new Float64Array(B), s = new Float64Array(B); for (let k = 0; k < B; k++) { c[k] = Math.cos(2 * Math.PI * k / T); s[k] = Math.sin(2 * Math.PI * k / T); } return [c, s]; });
+    const ry = new Float64Array(B), rx = new Float64Array(B); let nb = 0;
+    for (let y0 = 0; y0 + B <= h; y0 += B) for (let x0 = 0; x0 + B <= w; x0 += B) {
+      ry.fill(0); rx.fill(0); nb++;
+      for (let y = 0; y < B; y++) for (let x = 0; x < B; x++) { const v = b[(y0 + y) * w + x0 + x]; ry[y] += v; rx[x] += v; }
+      for (let t = 0; t < Ts.length; t++) { const [c, s] = cs[t]; let a1 = 0, b1 = 0, a2 = 0, b2 = 0;
+        for (let k = 0; k < B; k++) { a1 += ry[k] * c[k]; b1 += ry[k] * s[k]; a2 += rx[k] * c[k]; b2 += rx[k] * s[k]; }
+        sc[t] += Math.hypot(a1, b1) + Math.hypot(a2, b2); }
+    }
+    if (!nb) return null;
+    let best = 0, mean = 0; for (let t = 0; t < Ts.length; t++) { mean += sc[t]; if (sc[t] > sc[best]) best = t; } mean /= Ts.length;
+    // a strong harmonic can outscore the fundamental: prefer 2T or 3T when it is nearly as strong (its template contains T's)
+    let T = Ts[best]; for (const m of [3, 2]) { const t2 = Math.round((T * m - 6) / 0.05); if (t2 < Ts.length) { let mx = 0, at = t2; for (let q = Math.max(0, t2 - 4); q <= Math.min(Ts.length - 1, t2 + 4); q++) if (sc[q] > mx) { mx = sc[q]; at = q; } if (mx > 0.6 * sc[best] && mx / mean > 1.7) { T = Ts[at]; break; } } }
+    return { T, strength: sc[best] / mean, hp: b };
+  }
+  function gridClean(nx, ny, nz, w, h, minStrength = 1.7) {
+    if (w < 256 || h < 256) return null;
+    const dy = gridDetect(ny, w, h), dx = gridDetect(nx, w, h);
+    const d = (dy && (!dx || dy.strength >= dx.strength)) ? dy : dx; if (!d || d.strength < minStrength) return null;
+    const T = d.T, nb = Math.max(8, Math.round(T * 2)), B = 256, st = B / 2, N = w * h;
+    const nzs = blur(nz, w, h, 3), flat = new Uint8Array(N); for (let i = 0; i < N; i++) flat[i] = nzs[i] > 0.97 ? 1 : 0;
+    const bx = new Int32Array(w), by = new Int32Array(h);
+    for (let x = 0; x < w; x++) bx[x] = Math.floor((x % T) / T * nb) % nb; for (let y = 0; y < h; y++) by[y] = Math.floor((y % T) / T * nb) % nb;
+    const han = new Float32Array(B); for (let k = 0; k < B; k++) han[k] = 0.5 - 0.5 * Math.cos(2 * Math.PI * (k + 0.5) / B) + 1e-4;
+    const out = [];
+    for (const [a, hpPre] of [[nx, dx && dx.hp], [ny, dy && dy.hp]]) {
+      let b = hpPre; if (!b) { const lo = blur(a, w, h, 6); b = new Float32Array(N); for (let i = 0; i < N; i++) b[i] = a[i] - lo[i]; }
+      const acc = new Float32Array(N), ws = new Float32Array(N), s = new Float64Array(nb * nb), c = new Float64Array(nb * nb);
+      for (let y0 = -st; y0 < h; y0 += st) for (let x0 = -st; x0 < w; x0 += st) {
+        const ya = Math.max(0, y0), yb = Math.min(h, y0 + B), xa = Math.max(0, x0), xb = Math.min(w, x0 + B); if (ya >= yb || xa >= xb) continue;
+        s.fill(0); c.fill(0);
+        for (let y = ya; y < yb; y++) for (let x = xa; x < xb; x++) { const i = y * w + x; if (!flat[i]) continue; const k = by[y] * nb + bx[x]; s[k] += b[i]; c[k]++; }
+        for (let k = 0; k < s.length; k++) s[k] = c[k] > 8 ? s[k] / c[k] : 0;
+        for (let y = ya; y < yb; y++) { const wy = han[y - y0]; for (let x = xa; x < xb; x++) { const i = y * w + x, ww = wy * han[x - x0]; acc[i] += s[by[y] * nb + bx[x]] * ww; ws[i] += ww; } }
+      }
+      const o = new Float32Array(N); for (let i = 0; i < N; i++) o[i] = a[i] - (ws[i] > 0 ? acc[i] / ws[i] : 0);
+      out.push(o);
+    }
+    const onx = out[0], ony = out[1], onz = new Float32Array(N);
+    for (let i = 0; i < N; i++) { const z = Math.max(1e-4, nz[i]), l = Math.hypot(onx[i], ony[i], z); onx[i] /= l; ony[i] /= l; onz[i] = z / l; }
+    return { nx: onx, ny: ony, nz: onz, T, strength: d.strength };
+  }
+
+  return { gridClean, gridDetect, normalsAnchored, screenedDCT, screenedCG, makeSim, millSim, stepoverFor, draftLimit, coneEnvelope, discOp, toolClose, composeShape, composeFinish, composeTail, curveLUT, guidedSmooth, fieldFloor, floorFill, edt, buildSTL, stlTriangles, zipBuild, zipList, inflate, decodePNG, resample, integrateNormals, normalsVsDepth, crc32: crc, blur, grad, poisson, poissonMasked, maskedBlur, otsu, buildMask, labels, distInside, makeDCT, normalize, percentile, compose, tileGrid, featherW, samplePlanes, sampleBack, accumulateTile, accumulateNormalTile, renormNormals, hillshade, toHalf, fromHalf, encodePNG };
 })();
 if (typeof module !== 'undefined') module.exports = Core;
 
@@ -1693,6 +1981,7 @@ const PARAMS = [
   ['rollW',       'Edge roll-off',         0,   12,  0.1,  0,    '% of long side. Black leeches in gently from the outline, following the form: high edges roll down, low edges barely change, detail is kept.', 'edges'],
   ['rollShape',   'Roll-off landing',      0,   1,   0.01, 1,    '0 = bullnose: rounds over and meets the floor as a short wall. 1 = S-curve: rounds over at the top and lands flat on the floor, tapering to exactly 0.', 'edges'],
   ['roundover',   'Edge roundover',        0,   30,  0.5,  0,    'px. Rounds the outline wall: kinder to tapered and ball-nose bits.', 'edges'],
+  ['draft',       'Mould draft',           0,   20,  0.5,  0,    '° from vertical. Leans every steep wall outward by at least this angle so a cast releases from a silicone or rigid mould without dragging or tearing. Only adds material at the foot of walls; tops, field and detail are untouched. Uses the panel width and relief depth set in Export. 2–5° is typical.', 'edges'],
 
   ['# Fusion', 'shape'],
   ['normalGain',  'Normal detail boost',   0,   4,   0.05, 0,    'Adds local form from the normal map (forms smaller than Detail size limit).', 'shape'],
@@ -1729,6 +2018,7 @@ const PARAMS = [
 
   ['postSmooth',  'Smooth after layers',   0,   4,   0.1,  0,    'px. Blurs the relief after the post layers have blended in: softens grain or harshness they add. Smooth in Finish runs before them.', 'post'],
   ['# Base', 'adv'],
+  ['anchorLen',   'Depth anchoring size',  0.5, 15,  0.1,  3,    '% of long side. Only with base "Normals · anchored to depth": forms wider than this follow the depth map (keeps what is in front in front), narrower ones come from the normals (detail). Smaller = more depth-led.', 'adv'],
   ['baseSmooth',  'Base smoothing',        0,   5,   0.05, 0,    '% of long side. Blurs the base so only its big shapes remain.', 'adv'],
   ['formWeight',  'Base strength',         0,   2,   0.01, 1,    'Scales the base’s slopes. Below 1 lets added detail dominate.', 'adv'],
   ['depthRelief', 'Base scale vs detail',  0.01,0.5, 0.01, 0.12, 'How strong compression and added detail are relative to the base.', 'adv'],
@@ -1771,7 +2061,10 @@ function updateBadges() {
 const COLL_KEY = 'reliefForge.collapsed';
 function loadColl() { try { const v = JSON.parse(localStorage.getItem(COLL_KEY)); return v && typeof v === 'object' ? v : {}; } catch { return {}; } }
 function saveColl(o) { try { localStorage.setItem(COLL_KEY, JSON.stringify(o)); } catch {} }
-function setP(id, v) { P[id] = v; $('p_' + id).value = v; $('v_' + id).textContent = v; markP(id); }
+function setP(id, v) { P[id] = v; $('p_' + id).value = v; $('v_' + id).textContent = pxLab(id, v); markP(id); }
+// pixel-based settings also show their real size on the panel set in Export (they act on the working image)
+function pxLab(id, v) { if (!PX_PARAMS.has(id) || !S.W || !(+v > 0)) return String(v); const mm = +v * Math.max(10, +$('sW').value || 200) / S.W; return `${v} · ${mm < 1 ? mm.toFixed(2) : mm.toFixed(1)} mm`; }
+function refreshPxLabels() { for (const id of PX_PARAMS) if ($('v_' + id)) $('v_' + id).textContent = pxLab(id, P[id]); }
 function buildParams() {
   for (const g of ['background', 'shape', 'finish', 'post', 'edges', 'adv']) $('g_' + g).innerHTML = '';
   const into = {}, coll = loadColl();
@@ -1789,7 +2082,7 @@ function buildParams() {
     const isMaskP = id === 'bgCutoff' || id === 'maskClean' || id === 'edgeSmooth' || id === 'edgeSoft';
     const commit = () => { if (S.view === 'mask' && isMaskP) render(); scheduleCompose(); };
     // while dragging: only the number updates (unless Live is on); the work runs once on release
-    l.querySelector('input').addEventListener('input', e => { P[id] = +e.target.value; $('v_' + id).textContent = e.target.value; markP(id); if ($('liveDrag').checked) commit(); });
+    l.querySelector('input').addEventListener('input', e => { P[id] = +e.target.value; $('v_' + id).textContent = pxLab(id, e.target.value); markP(id); if ($('liveDrag').checked) commit(); });
     l.querySelector('input').addEventListener('change', e => { P[id] = +e.target.value; if (id === 'bgCutoff') (S.cutMem = S.cutMem || {})[maskKind()] = P[id]; commit(); });
     const rs = e => { e.preventDefault(); if (id === 'bgCutoff' && S.depth) setAutoCutoff(true); else setP(id, def); S.maskCache = null; scheduleCompose(); };
     l.querySelector('input').addEventListener('dblclick', rs); $('v_' + id).addEventListener('dblclick', rs);
@@ -1943,6 +2236,13 @@ const PRESET_GROUPS = [
     ['Neutral · base only', BUILTIN['Neutral · base only'], 'Everything off: just the base height map. The blank canvas.'],
     ['NHeavyDat', { P: { rollW: 1.8, rollShape: 0, normalGain: 1.2, detailSwap: 0.21, planeLevel: 0.85, domeLevel: 0.89 }, layers: [{ src: 'tiles', mode: 'softlight', op: 0.32, at: 'pre' }, { src: 'tiles', mode: 'multiply', op: 0.39, size: 0.3, at: 'post' }], lv: 2, curve: [[0, 0], [0.4716, 0.1727], [0.7253, 0.4306], [1, 1]], baseSrc: 'normals', maskSrc: 'auto', fullRange: true }, 'Normals-led base, depth tiles soft-lit in and multiplied over for front-to-back order, deepened mid-tones. A strong all-round start.'],
     ...Object.entries(BUILTIN).filter(([n]) => n !== 'Neutral · base only').map(([n, p]) => [n, p, 'A bare starting point to build your own settings from.'])]],
+  ['Sweep picks (tested on 18 projects)', [
+    ["Anchored · all-rounder", {"P": {"anchorLen": 2.8, "normalGain": 1.19, "baseScale": 2.8, "compress": 0, "edgeFlatten": 0.05, "fieldLevel": 0, "planeLevel": 1, "domeLevel": 0.65, "ringLevel": 0, "fxDenoise": 0, "eqFine": 0.01, "eqMid": 0.71, "eqBroad": 0.07, "crease": 0, "creaseSize": 0.41, "gamma": 0.89}, "layers": [{"src": "tiles", "mode": "softlight", "op": 0.32, "at": "pre"}, {"src": "tiles", "mode": "multiply", "op": 0.39, "size": 0.3, "at": "post"}], "lv": 2, "baseSrc": "normalsAnchored", "fullRange": true}, "The safe default: never worse than 5th of 8 on 18 test projects (coins, emblems, statues, panels, a real coin photo). Normals anchored to depth, levelled field, mid detail lifted."],
+    ["Anchored · coin & medal", {"P": {"anchorLen": 2.0, "normalGain": 0.01, "baseScale": 4.6, "compress": 0, "edgeFlatten": 0.25, "fieldLevel": 0, "planeLevel": 1, "domeLevel": 0.55, "ringLevel": 0, "fxDenoise": 0, "eqFine": -0.02, "eqMid": 0.79, "eqBroad": 0.25, "crease": 0.25, "creaseSize": 0.54, "gamma": 1.16}, "layers": [], "lv": 2, "baseSrc": "normalsAnchored", "fullRange": true}, "Sweep pick for coins and medals: flat field, strong rim and lettering, crisp mid detail."],
+    ["Anchored · keeps volume", {"P": {"anchorLen": 2.4, "normalGain": 0, "baseScale": 2.8, "compress": 0, "edgeFlatten": 0.18, "fieldLevel": 0.3, "planeLevel": 0, "domeLevel": 0.35, "ringLevel": 0, "fxDenoise": 0, "eqFine": 0.51, "eqMid": 0.79, "eqBroad": -0.14, "crease": 0.67, "creaseSize": 0.3, "gamma": 1.27}, "layers": [], "lv": 2, "baseSrc": "normalsAnchored", "fullRange": true}, "Top scorer on 9 of 18 test projects, coins as well as figures: keeps front-to-back volume, no plane levelling, creases pulled out. Can look a little soft on faces; try Crisp contrast if so."],
+    ["Anchored · crisp contrast", {"P": {"normalGain": 3.22, "detailSwap": 0.82, "trustEdges": 0.74, "baseScale": 3.0, "compress": 1.07, "edgeFlatten": 0, "fieldLevel": 0.03, "planeLevel": 1, "domeLevel": 0.47, "ringLevel": 0, "fxDenoise": 0.21, "eqFine": 0.75, "eqMid": 0.64, "eqBroad": -0.25, "crease": 0.08, "creaseSize": 0.26, "gamma": 1.03, "anchorLen": 5}, "layers": [{"src": "tiles", "mode": "softlight", "op": 0.32, "at": "pre"}, {"src": "tiles", "mode": "multiply", "op": 0.39, "size": 0.3, "at": "post"}], "lv": 2, "baseSrc": "normalsAnchored", "fullRange": true}, "Punchier modelling (deeper eye sockets, harder folds) than the other anchored picks, at some cost to true volume."],
+    ["Crisp · classic base", {"P": {"normalGain": 3.22, "detailSwap": 0.82, "trustEdges": 0.74, "baseScale": 3.0, "compress": 1.07, "edgeFlatten": 0, "fieldLevel": 0.03, "planeLevel": 1, "domeLevel": 0.47, "ringLevel": 0, "fxDenoise": 0.21, "eqFine": 0.75, "eqMid": 0.64, "eqBroad": -0.25, "crease": 0.08, "creaseSize": 0.26, "gamma": 1.03}, "layers": [{"src": "tiles", "mode": "softlight", "op": 0.32, "at": "pre"}, {"src": "tiles", "mode": "multiply", "op": 0.39, "size": 0.3, "at": "post"}], "lv": 2, "baseSrc": "auto", "fullRange": true}, "Sweep pick on the original auto base: crisper than NHeavyDat and the most consistent of 98 random settings across all 7 test projects."],
+  ]],
   ['Statues', [
     ['Statue · shallow', TUNED['Statue · shallow'], 'Statues & figures, bas-relief: flat-lit, compressed forms, limbs roll gently down onto the background.'],
     ['Statue · deep', TUNED['Statue · deep'], 'Statues & figures, high relief: keeps the volume, same soft landing onto the background.'],
@@ -2298,9 +2598,21 @@ function checkUploadedNormals() {
   setStatus('nrmStatus', 'Uploaded normals: ' + describeCheck(r, fx, fy) + (fy ? ` (now ${S.nrmConv === 'dx' ? 'DirectX' : 'OpenGL'})` : ''), fx || fy || !weak ? 'ok' : '');
   S.nbCache = null; S.stackCache = null; S.maskCache = null;
 }
-function activeNormal() {
+function rawNormal() {
   if (S.upNormal && (!S.mogeNormal || S.nrmSrc !== 'model')) return S.upNormal;
   return S.mogeNormal;
+}
+// the active normals, with the model's patch lattice removed when "Remove patch grid" is on (cached; the key includes a
+// fingerprint so in-place axis flips invalidate it)
+function activeNormal() {
+  const n = rawNormal(); if (!n) return n;
+  const el = $('gridNrm'); if (!el || !el.checked || n.nx.length !== S.W * S.H) { if ($('gridInfo')) $('gridInfo').textContent = ''; return n; }
+  let fp = 0; const st = Math.max(1, Math.floor(n.nx.length / 97)); for (let i = 0; i < n.nx.length; i += st) fp += n.nx[i] * 1.7 + n.ny[i] * 2.3;
+  const c = S.gcCache; if (c && c.src === n && c.fp === fp) return c.out || n;
+  const r = Core.gridClean(n.nx, n.ny, n.nz, S.W, S.H);
+  S.gcCache = { src: n, fp, out: r ? { nx: r.nx, ny: r.ny, nz: r.nz } : null };
+  $('gridInfo').textContent = r ? `(removed, ${r.T.toFixed(1)} px cells)` : '(none found)';
+  return S.gcCache.out || n;
 }
 
 // ---------- passes ----------
@@ -2363,7 +2675,7 @@ async function runPasses() {
       S.depthTiles = acc;
     }
     const nchk = checkMogeNormals(); if (S.upNormal && $('autoNrm').checked) checkUploadedNormals();
-    const nsrc = activeNormal() === S.upNormal && S.upNormal ? 'uploaded normals' : (S.mogeNormal ? 'MoGe normals' : 'NO normals');
+    const nsrc = rawNormal() === S.upNormal && S.upNormal ? 'uploaded normals' : (S.mogeNormal ? 'MoGe normals' : 'NO normals');
     setStatus('runStatus', `Done in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${W}×${H} · depth + ${nsrc}${$('tta').checked ? ' · TTA' : ''}${nchk ? ' · ' + nchk : ''}`, nsrc === 'NO normals' ? 'err' : 'ok');
     setAutoCutoff(); enableTabs();
     S.busy = false; await compose(false);
@@ -2374,6 +2686,8 @@ async function runPasses() {
 }
 function enableTabs() {
   const has = { global: !!S.depth, normal: !!activeNormal(), tiles: !!S.depthTiles, mask: !!S.depth, relief: !!S.depth, shade: !!S.depth, '3d': !!S.depth };
+  if ($('btnGoMill')) $('btnGoMill').disabled = !S.depth;
+  refreshPxLabels();
   for (const k in has) document.querySelector(`.tab[data-v="${k}"]`).disabled = !has[k];
 }
 
@@ -2549,7 +2863,20 @@ async function rawBase() {
   const v = $('baseSrc').value;
   if (v === 'moge') return depthMap();   // MoGe depth retired
   if (v === 'normalsFloor' && activeNormal()) { const f = await normalFloorBase(); if (f) return f; }
+  if (v === 'normalsAnchored' && activeNormal()) return await anchoredBase();
   return (v === 'normals' || v === 'normalsFloor') && activeNormal() ? await normalBase() : depthMap(); }
+// normals integrated with the depth map as an anchor (screened Poisson): fine and mid detail from the normals, the broad
+// shape and front-to-back order from the depth. Forms wider than "Depth anchoring size" follow the depth.
+async function anchoredBase() {
+  const n = activeNormal(); if (!n) return null;
+  // anchor to the GLOBAL depth: only its broad shape is used, and that is where the single global pass is most reliable
+  const M = currentMask(), ref = S.depth || depthMap(), ell = Math.max(2, (P.anchorLen || 3) / 100 * Math.max(S.W, S.H));
+  const c = S.naCache; if (c && c.n === n && c.cap === P.slopeCap && c.M === M && c.ref === ref && c.ell === ell) return c.H;
+  let Hh;
+  if (WK.ok) Hh = (await wkCall('anchored', { w: S.W, h: S.H, cap: P.slopeCap, useMask: !!M, ell }, { nx: n.nx, ny: n.ny, nz: n.nz, mask: M, ref })).H;
+  else Hh = Core.normalsAnchored(n.nx, n.ny, n.nz, ref, S.W, S.H, M, ell, P.slopeCap);
+  S.naCache = { n, cap: P.slopeCap, M, ref, ell, H: Hh }; return Hh;
+}
 // high-pass of the image: only fine texture (pores, strand edges, crackle), no broad light and shadow.
 // Centred on 0.5 (neutral for Soft light / Overlay), scaled so ±3σ of the detail spans the 0..1 range.
 function imageDetail(size) {
@@ -2644,7 +2971,7 @@ onmessage = e => {
         w = W2; h = H2;
       }
       // two cached stages: Finish sliders skip fusion + levelling, touch-ups and Edges skip Finish too
-      const TAIL = { baseLift: 1, roundover: 1, rollW: 1, rollShape: 1, fullRange: 1, invert: 1 };
+      const TAIL = { baseLift: 1, roundover: 1, rollW: 1, rollShape: 1, fullRange: 1, invert: 1, draft: 1, physW: 1, physD: 1 };
       const FIN = { postSmooth: 1, outSmooth: 1, clipHi: 1, clipLo: 1, fxDenoise: 1, eqFine: 1, eqMid: 1, eqBroad: 1, crease: 1, creaseSize: 1, wear: 1, gamma: 1, curve: 1, post: 1 };
       const ids = '|' + m.half + '|' + ['depth', 'tiles', 'lum', 'nx', 'ny', 'nz', 'mask', 'alpha', 'p0', 'p1', 'p2', 'p3'].map(k => store[k] ? store[k].id : 0).join(',');
       const pick = skip => { const o = {}; for (const k in m.P) if (!skip(k)) o[k] = m.P[k]; return JSON.stringify(o); };
@@ -2657,6 +2984,10 @@ onmessage = e => {
       out = { H, w, h, hist: { i: H.histIn, o: H.histOut } }; tr = [H.buffer];
     } else if (m.type === 'integrate') {
       const H = Core.integrateNormals(g('nx'), g('ny'), g('nz'), m.w, m.h, m.cap, m.useMask ? g('mask') : null, g('ref')); out = { H }; tr = [H.buffer];
+    } else if (m.type === 'anchored') {
+      const H = Core.normalsAnchored(g('nx'), g('ny'), g('nz'), g('ref'), m.w, m.h, m.useMask ? g('mask') : null, m.ell, m.cap); out = { H }; tr = [H.buffer];
+    } else if (m.type === 'make') {
+      const r = Core.makeSim(m.H, m.w, m.h, m.opt); out = r; tr.push(r.S.buffer, r.diff.buffer);
     } else if (m.type === 'stl') {
       const files = [];
       for (const t of m.tiles) { const b = Core.buildSTL(g('relief'), m.w, m.h, { ...m.opt, ...t.range }); files.push({ name: t.name, buf: b }); tr.push(b); }
@@ -2715,6 +3046,7 @@ async function runCompose(req) {
     const pl = await postLayers();
     const prm = { ...P, invert: $('invert').checked, post: pl.list, curve: curveActive() ? S.curve.map(p => p.slice()) : null, fullRange: $('fullRange').checked };
     if (half) for (const k of PX_PARAMS) prm[k] = P[k] / 2;
+    if (P.draft > 0) { prm.physW = Math.max(10, +$('sW').value || 200); prm.physD = Math.max(0.2, +$('sD').value || 6); }
     let out;
     if (WK.ok) out = await wkCall('compose', { w: S.W, h: S.H, half, P: prm }, { depth: bd, tiles: tl, lum: S.lum, nx: nrm && nrm.nx, ny: nrm && nrm.ny, nz: nrm && nrm.nz, mask: M, alpha: MA, p0: pl.maps.p0 || null, p1: pl.maps.p1 || null, p2: pl.maps.p2 || null, p3: pl.maps.p3 || null, sa: sbLive() && S.sculpt.add || null, ss: sbLive() && S.sculpt.sm || null });
     else {   // fallback: same maths on this thread
@@ -2734,6 +3066,59 @@ async function runCompose(req) {
   S.cBusy = false; if (!S.cPending) $('busyBar').hidden = true;
   req.res(result); (req.alsoRes || []).forEach(r => r(result));
   if (S.cPending) { const n = S.cPending; S.cPending = null; runCompose(n); }
+}
+
+// ---------- "as made" preview: what the CNC bit, printer or laser can actually produce ----------
+const MILL = { key: null, res: null, busy: false, again: false, t: 0 };
+const LASERS = { fibre: { spot: 0.03, wall: 10, pass: 0.01 }, diode: { spot: 0.1, wall: 20, pass: 0.05 }, co2: { spot: 0.15, wall: 15, pass: 0.08 } };
+function millOpts() {
+  const p = $('mProc').value, o = { process: p, widthMM: Math.max(10, +$('sW').value || 200), depthMM: Math.max(0.2, +$('sD').value || 6), maxR: 12 };
+  if (p === 'cnc') { const b = $('mTool').value; Object.assign(o, { bit: b, diaMM: Math.max(0.05, +$('mDia').value || 3), tipMM: Math.max(0, +$('mTip').value || 0), angleDeg: b === 'taper' ? +$('mTap').value : +$('mAng').value }); }
+  else if (p === 'fdm') Object.assign(o, { layerMM: +$('fLayer').value, lineMM: +$('fLine').value });
+  else if (p === 'resin') Object.assign(o, { layerMM: +$('rLayer').value, xyMM: +$('rXY').value });
+  else { const L = LASERS[$('lType').value]; Object.assign(o, { spotMM: Math.max(0.005, +$('lSpot').value || L.spot), passMM: Math.max(0.001, +$('lPass').value || L.pass), wallDeg: L.wall }); }
+  return o; }
+function millKey() { return S.relief ? idOf(S.relief) + '|' + JSON.stringify(millOpts()) : null; }
+function millUI() { const p = $('mProc').value, b = $('mTool').value;
+  document.querySelectorAll('#makeCard .mp').forEach(e => e.hidden = e.dataset.p !== p);
+  if (p === 'cnc') { $('mDiaL').hidden = !(b === 'ball' || b === 'flat'); $('mTipL').hidden = !(b === 'vbit' || b === 'taper'); $('mAngL').hidden = b !== 'vbit'; $('mTapL').hidden = b !== 'taper'; }
+  $('mShow').options[1].textContent = p === 'cnc' ? 'Milled surface' : p === 'laser' ? 'Engraved surface' : 'Printed surface'; }
+function scheduleMill() { clearTimeout(MILL.t); MILL.t = setTimeout(runMill, 150); }
+async function runMill() {
+  if (!S.relief) return; const key = millKey();
+  if (MILL.key === key && MILL.res) { if (S.view === 'mill') drawMill(); return; }
+  if (MILL.busy) { MILL.again = true; return; }
+  MILL.busy = true; $('millStatus').textContent = 'Simulating…'; $('busyBar').hidden = false;
+  try { const w = S.reliefW, h = S.reliefH, o = millOpts(), Hc = Float32Array.from(S.relief);
+    const res = WK.ok ? await wkCall('make', { H: Hc, w, h, opt: o }) : (await tick(), Core.makeSim(Hc, w, h, o));
+    MILL.res = { ...res, w, h, o, half: S.reliefHalf }; MILL.key = key; }
+  catch (e) { console.error(e); $('millStatus').textContent = 'Simulation failed: ' + String(e.message || e).split('\n')[0]; }
+  MILL.busy = false; if (!S.cBusy) $('busyBar').hidden = true;
+  if (MILL.again) { MILL.again = false; return runMill(); }
+  if (S.view === 'mill') drawMill();
+}
+function drawMill() {
+  const r = MILL.res; if (!r) return; const { w, h } = r, show = $('mShow').value, st = r.stats, tol = st.tolMM;
+  const sh = Core.hillshade(show === 'design' && S.relief && S.reliefW === w ? S.relief : r.S, w, h, +$('zEx').value, +$('lightAz').value, 35);
+  const im = viewImage(w, h), u = new Uint32Array(im.data.buffer), scE = Math.max(4 * tol, st.maxExtra * 0.6), scM = Math.max(4 * tol, st.maxMissing * 0.6);
+  for (let i = 0; i < w * h; i++) { const g = Math.min(255, Math.max(0, sh[i] * 255)) | 0, d = r.diff[i];
+    if (show !== 'left' || Math.abs(d) <= tol) { u[i] = 0xff000000 | (g << 16) | (g << 8) | g; continue; }
+    const extra = d > 0, a = Math.min(1, 0.4 + 0.6 * (Math.abs(d) - tol) / (extra ? scE : scM)), c = extra ? [236, 64, 52] : [64, 132, 240];
+    const R = g * (1 - a) + c[0] * a, G = g * (1 - a) + c[1] * a, B = g * (1 - a) + c[2] * a;
+    u[i] = 0xff000000 | ((B | 0) << 16) | ((G | 0) << 8) | (R | 0); }
+  vctx.putImageData(im, 0, 0); S.vimFor = null;
+  const o = r.o, f = v => v < 0.1 ? v.toFixed(3) : v.toFixed(2), pc = v => { v *= 100; return v < 1 ? v.toFixed(2) : v.toFixed(1); };
+  const who = o.process === 'cnc' ? (o.bit === 'vbit' ? `${o.angleDeg}° V-bit${o.tipMM ? ` (${o.tipMM} mm tip)` : ''}` : o.bit === 'taper' ? `${o.tipMM} mm tapered ball-nose (${o.angleDeg}°/side)` : `${o.diaMM} mm ${o.bit === 'ball' ? 'ball-nose' : 'flat end mill'}`)
+    : o.process === 'fdm' ? `FDM ${o.layerMM} mm layers, ${o.lineMM} mm lines` : o.process === 'resin' ? `Resin ${o.layerMM} mm layers, ${o.xyMM} mm pixels` : `${$('lType').selectedOptions[0].textContent} laser, ${o.spotMM} mm spot`;
+  const parts = [];
+  const prn = o.process === 'fdm' || o.process === 'resin';
+  if (st.extra * 100 >= 0.05) parts.push(prn ? `${pc(st.extra)}% filled in (gaps narrower than ${o.process === 'fdm' ? 'a line' : 'a pixel'}, up to ${f(st.maxExtra)} mm)` : `${pc(st.extra)}% left in where it can't reach (up to ${f(st.maxExtra)} mm)`);
+  if (st.missing * 100 >= 0.05) parts.push(`${pc(st.missing)}% too thin to ${prn ? 'print' : 'make'} (up to ${f(st.maxMissing)} mm lost)`);
+  let msg = `${who}: ` + (parts.length ? parts.join(', ') + '.' : `matches the design within ${tol} mm.`);
+  if (st.stepover) msg += ` Finish stepover for 0.02 mm ridges: ${st.stepover < 0.1 ? st.stepover.toFixed(3) : st.stepover.toFixed(2)} mm.`;
+  if (st.steps) msg += o.process === 'laser' ? ` ${st.steps} passes for the full depth.` : ` ${st.steps} layers.`;
+  msg += ` Panel ${o.widthMM} × ${o.depthMM} mm deep (set in Export)` + (r.half ? ' · preview resolution' : '') + '.';
+  $('millStatus').textContent = msg;
 }
 
 // ---------- render ----------
@@ -2766,7 +3151,7 @@ function normalImageData(n, w, h) {   // OpenGL-style colours
 }
 function drawDepth(a) { drawGray(a, S.W, S.H, true); }   // raw map: the mask only appears in the Mask tab and the final outputs
 function render() {
-  const v = S.view; $('shadeCtl').hidden = v !== 'shade'; $('ctl3d').hidden = v !== '3d' || !!VIEWER_HTML; $('zoomCtl').hidden = v === '3d'; $('view3d').hidden = v !== '3d';
+  const v = S.view; $('shadeCtl').hidden = v !== 'shade' && v !== 'mill'; $('millCtl').hidden = v !== 'mill'; $('ctl3d').hidden = v !== '3d' || !!VIEWER_HTML; $('zoomCtl').hidden = v === '3d'; $('view3d').hidden = v !== '3d';
   if (!S.img) return; $('empty').hidden = true;
   if (v === '3d') { view.hidden = true; show3D(); return; }
   view.hidden = false;
@@ -2778,6 +3163,7 @@ function render() {
   else if (v === 'mask' && S.depth) drawMaskView();
   else if (v === 'relief' && S.relief) drawGray(S.relief, S.reliefW, S.reliefH, false);
   else if (v === 'shade' && S.relief) drawGray(Core.hillshade(S.relief, S.reliefW, S.reliefH, +$('zEx').value, +$('lightAz').value, 35), S.reliefW, S.reliefH, false);
+  else if (v === 'mill' && S.relief) { if (MILL.res && MILL.key === millKey()) drawMill(); else { if (MILL.res && MILL.res.w === S.reliefW && MILL.res.h === S.reliefH) drawMill(); scheduleMill(); } }
 }
 function setView(v) { S.view = v; document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === v)); render(); if (typeof paintUI === 'function') paintUI(); if (typeof sbUI === 'function') sbUI(); }
 // ---------- hand-painted mask ----------
@@ -3208,7 +3594,7 @@ const extOf = f => (f && f.name && /\.[a-z0-9]+$/i.test(f.name) ? f.name.match(/
 function settingsSnapshot() {
   const sel = ['baseSrc', 'maskSrc', 'workRes', 'globRes', 'tileN', 'nTok', 'nTiles', 'sRes'];
   const num = ['sW', 'sD', 'sB', 'bClear', 'bWall', 'bCover', 'bFloor', 'bedW', 'bedH', 'w3d', 'd3d'];
-  const chk = ['invert', 'mirrorMould', 'fullRange', 'autoNrm', 'tta', 'sBox', 'sTile', 'halfPrev', 'liveDrag'];
+  const chk = ['invert', 'mirrorMould', 'fullRange', 'autoNrm', 'gridNrm', 'tta', 'sBox', 'sTile', 'halfPrev', 'liveDrag'];
   const o = { P: { ...P }, ui: {}, maskUserSet: !!S.maskUserSet, upFlipX: !!S.upFlipX, pickColor: S.pickColor || null, layers: layersOut(), lv: 2, nrmConv: S.nrmConv, nrmSrc: S.nrmSrc, curve: S.curve };
   for (const k of [...sel, ...num]) o.ui[k] = $(k).value; for (const k of chk) o.ui[k] = $(k).checked;
   return o;
@@ -3321,6 +3707,7 @@ function updateButtons() {
   $('btnSaveProj').disabled = !S.depth || !S.img || S.busy;
   $('btnNrmPng').disabled = !activeNormal() || S.busy;
 }
+$('gridNrm').addEventListener('change', () => { S.nbCache = null; S.stackCache = null; S.maskCache = null; S.naCache = null; S.gcCache = null; if (S.view === 'normal') render(); scheduleCompose(); });
 function normalChanged() { S.nbCache = null; prepUploadNormal(); refreshThumbs(); updateButtons(); if (S.depth) enableTabs(); if (S.view === 'normal') render(); scheduleCompose(); }
 
 // ---------- wire ----------
@@ -3406,6 +3793,15 @@ $('filePreset').onchange = async e => { const f = e.target.files[0]; if (!f) ret
     setStatus('compStatus', `Imported ${Object.keys(ps).length} preset(s) – pick one from the Preset list to apply it.`, 'ok'); } catch (err) { setStatus('compStatus', 'Not a valid preset file.', 'err'); } e.target.value = ''; };
 $('zoom').onchange = e => $('stage').classList.toggle('zoom', e.target.checked);
 let shT = 0; ['lightAz', 'zEx'].forEach(id => $(id).oninput = () => { cancelAnimationFrame(shT); shT = requestAnimationFrame(render); });
+$('mTool').addEventListener('change', () => { const b = $('mTool').value; if (b === 'vbit') $('mTip').value = 0.1; if (b === 'taper') $('mTip').value = 0.5; });
+['mProc', 'mTool', 'mDia', 'mTip', 'mAng', 'mTap', 'fLayer', 'fLine', 'rLayer', 'rXY', 'lSpot', 'lPass'].forEach(id => $(id).addEventListener('change', () => { millUI(); if (S.view === 'mill') scheduleMill(); }));
+['mDia', 'mTip', 'lSpot', 'lPass'].forEach(id => $(id).addEventListener('input', () => { if (S.view === 'mill') scheduleMill(); }));
+$('lType').addEventListener('change', () => { const L = LASERS[$('lType').value]; $('lSpot').value = L.spot; $('lPass').value = L.pass; if (S.view === 'mill') scheduleMill(); });
+$('mShow').addEventListener('change', () => { if (S.view === 'mill') drawMill(); });
+['sW', 'sD', 'w3d', 'd3d'].forEach(id => $(id).addEventListener('change', () => { setTimeout(() => { refreshPxLabels(); if (P.draft > 0) scheduleCompose(); if (S.view === 'mill') scheduleMill(); }, 0); }));
+$('btnGoMill').onclick = () => { if (S.depth) setView('mill'); };
+$('btnMillBack').onclick = () => setView('relief');
+millUI();
 (async () => {
   if (!navigator.gpu) { setStatus('gpuStat', `No WebGPU here${self.isSecureContext ? '' : ' (page is not a secure context – open via http://localhost or file)'}. Open this file in current Chrome or Edge, not an in-app preview. CPU fallback is slow and limited to small passes.`, 'err'); return; }
   try {
