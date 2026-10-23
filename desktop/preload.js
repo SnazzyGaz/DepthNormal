@@ -12,7 +12,7 @@ let ort = null, ortErr = '';
 try { delete globalThis.Float16Array; } catch {}
 if (info.noNative) ortErr = 'switched off with --no-native';
 else try { ort = require('onnxruntime-node'); ipcRenderer.send('rf-log', 'native runtime loaded'); } catch (e) { ortErr = String(e && e.message || e); ipcRenderer.send('rf-log', 'native runtime failed to load: ' + ortErr); }
-const GPU_EP = info.platform === 'win32' ? ['dml', 'DirectML'] : null;   // Linux: CUDA needs a matching CUDA/cuDNN install, so WebGPU is used there
+const GPU_EP = process.env.RF_TEST_GPU_EP ? [process.env.RF_TEST_GPU_EP, 'Test GPU'] : info.platform === 'win32' ? ['dml', 'DirectML'] : null;   // RF_TEST_GPU_EP: test hook only   // Linux: CUDA needs a matching CUDA/cuDNN install, so WebGPU is used there
 
 // models are written to disk once (by a fingerprint of their bytes) and loaded from there: external-data models need real files
 function fingerprint(u8) {
@@ -30,9 +30,10 @@ async function create(model, externals, dev) {
   const dir = path.join(info.modelDir, fingerprint(model)); fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'model.onnx'); writeIfMissing(file, Buffer.from(model.buffer, model.byteOffset, model.byteLength));
   for (const e of externals || []) writeIfMissing(path.join(dir, path.basename(e.path)), Buffer.from(e.data.buffer, e.data.byteOffset, e.data.byteLength));
-  const opts = dev === 'gpu' ? { executionProviders: [GPU_EP[0]], enableMemPattern: false, executionMode: 'sequential', graphOptimizationLevel: 'all' }
+  // --dml-opt=disabled|basic|extended|all (default all): how much ONNX Runtime rewrites the graph before DirectML runs it
+  const opts = dev === 'gpu' ? { executionProviders: [GPU_EP[0]], enableMemPattern: false, executionMode: 'sequential', graphOptimizationLevel: ['disabled', 'basic', 'extended', 'all'].includes(info.dmlOpt) ? info.dmlOpt : 'all' }
     : { executionProviders: ['cpu'], graphOptimizationLevel: 'all', intraOpNumThreads: Math.max(1, os.cpus().length) };
-  ipcRenderer.send('rf-log', 'creating session', dev, opts.executionProviders[0], (model.length / 1e6).toFixed(0) + ' MB');
+  ipcRenderer.send('rf-log', 'creating session', dev, opts.executionProviders[0], 'opt=' + opts.graphOptimizationLevel, (model.length / 1e6).toFixed(0) + ' MB');
   let s; try { s = await ort.InferenceSession.create(file, opts); } catch (e) { ipcRenderer.send('rf-log', 'session failed: ' + String(e && e.message || e)); throw e; }
   const id = nextId++; ipcRenderer.send('rf-log', 'session ready', dev);
   sessions.set(id, s);
@@ -52,6 +53,7 @@ async function release(id) { const s = sessions.get(id); sessions.delete(id); if
 const allowed = new Set();   // only paths the person picked in a save dialog can be written
 contextBridge.exposeInMainWorld('rfNative', {
   platform: info.platform, version: info.version,
+  log: (...a) => ipcRenderer.send('rf-log', ...a.map(x => String(x).slice(0, 1000))),
   chooseSave: async (name, kind) => { const p = await ipcRenderer.invoke('rf-choose-save', name, kind); if (p) allowed.add(p); return p; },
   writeFile: async (p, data) => { if (!allowed.has(p)) throw new Error('not a chosen save location'); allowed.delete(p); await fs.promises.writeFile(p, data); },
   ort: ort ? { gpu: GPU_EP ? GPU_EP[1] : null, create, run, release } : null,

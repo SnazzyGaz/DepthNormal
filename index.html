@@ -292,7 +292,7 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
         <div class="row" style="margin:6px 0 0"><button id="btnRestore" class="primary mini grow">Restore last session</button><button id="btnRestoreNo" class="mini ghost">Dismiss</button></div></div>
       <div class="status" id="projStatus"></div>
     </div>
-    <div class="card"><h3>Graphics</h3><div class="status" id="gpuStat" style="margin:0">Checking GPU…</div><label class="chk" id="nativeRow" hidden style="margin-top:8px"><input type="checkbox" id="useNative" checked> Native AI runtime <span class="help" id="nativeInfo"></span></label><div class="row" id="gpuRecRow" hidden style="margin:8px 0 0"><button id="btnGpuRecover" class="mini grow" title="Use after a graphics card error. Reloads the models (no download) and tries the graphics card again; if it’s still unavailable, uses the processor so you can carry on. Your work is kept.">Recover GPU &amp; reload models</button></div></div>
+    <div class="card"><h3>Graphics</h3><div class="status" id="gpuStat" style="margin:0">Checking GPU…</div><label class="chk" id="nativeRow" hidden style="margin-top:8px"><input type="checkbox" id="useNative"> Use DirectML instead of WebGPU <span class="help" id="nativeInfo"></span></label><div class="help" id="nativeCpuInfo" hidden style="margin-top:6px"></div><div class="row" id="gpuRecRow" hidden style="margin:8px 0 0"><button id="btnGpuRecover" class="mini grow" title="Use after a graphics card error. Reloads the models (no download) and tries the graphics card again; if it’s still unavailable, uses the processor so you can carry on. Your work is kept.">Recover GPU &amp; reload models</button></div></div>
     <div class="card">
       <h3>Depth model <span class="pill" id="epDepth">not loaded</span></h3>
       <select id="depthSel" style="width:100%">
@@ -2578,14 +2578,16 @@ async function makeSession(model, external, pill) {
   if (web) { ort.env.wasm.wasmPaths = ORT_DIST; ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(8, navigator.hardwareConcurrency || 4) : 1; }
   const opts = ep => ({ executionProviders: [ep], graphOptimizationLevel: 'all', ...(external.length ? { externalData: external } : {}) });
   let sess = null, ep = '';
-  // desktop app: the native ONNX Runtime (DirectML on Windows) is usually several times faster than WebGPU in the page
+  // desktop app: the native ONNX Runtime. Its GPU path (DirectML) is opt-in: on tested cards it was no faster than WebGPU
+  // and broke the fp16 depth model. Its CPU path is the automatic fallback when WebGPU isn't available (much faster than wasm).
   const N = window.rfNative && window.rfNative.ort;
-  if (N && $('useNative').checked && !S.forceCpu && N.gpu) {
+  const kindOf = pill === 'epDepth' ? 'depth' : 'normal';
+  if (N && N.gpu && $('useNative').checked && !S.forceCpu && !S.nativeBad[kindOf]) {
     try { sess = await nativeSession(N, model, external, 'gpu'); ep = 'native · ' + sess.__epName; }
     catch (e) { console.warn('native GPU session failed', e); setStatus('gpuStat', 'Native GPU runtime failed, trying WebGPU: ' + String(e.message || e).slice(0, 200), 'err'); sess = null; } }
   if (!sess && web && navigator.gpu && !S.forceCpu) { try { sess = await ort.InferenceSession.create(model, opts('webgpu')); ep = 'webgpu'; watchGpuDevice(); }
     catch (e) { console.warn('webgpu failed', e); setStatus('gpuStat', 'WebGPU session failed, using CPU: ' + String(e.message || e).slice(0, 300), 'err'); } }
-  if (!sess && N && $('useNative').checked) { try { sess = await nativeSession(N, model, external, 'cpu'); ep = 'native · CPU'; } catch (e) { console.warn('native CPU session failed', e); sess = null; } }
+  if (!sess && N && !S.nativeBad[kindOf + 'Cpu']) { try { sess = await nativeSession(N, model, external, 'cpu'); ep = 'native · CPU'; } catch (e) { console.warn('native CPU session failed', e); sess = null; } }
   if (!sess) { if (!web) throw new Error('the AI runtime could not be loaded (check the connection)'); sess = await ort.InferenceSession.create(model, opts('wasm')); ep = 'wasm (CPU – slow)'; }
   sess.__ep = ep; $(pill).textContent = ep; return sess;
 }
@@ -2708,8 +2710,30 @@ async function depthRegion(t, Sres, flip) {
   try { res = await s.run({ [inName]: mk(depthImgType) }); }
   catch (e) { if (!/float16|float|type/i.test(String(e.message || e)) || isSizeErr(e)) throw e; depthImgType = depthImgType === 'float16' ? 'float32' : 'float16'; res = await s.run({ [inName]: mk(depthImgType) }); }
   const ot = res[s.outputNames[0]], out = toF32(ot.data); try { ot.dispose(); } catch {}
+  if (s.__native && !(await nativeOutputOk('depth', out))) return depthRegion(t, Sres, flip);   // switched to WebGPU: redo this tile
   if (flip) flipPlane(out, Sres, Sres);
   return out;
+}
+// The native GPU runtime can return garbage for some model + driver combinations (seen: DA3 fp16 on DirectML gave NaN /
+// noise while MoGe was fine). Check the first outputs; if they're broken, rebuild that model on WebGPU and carry on.
+S.nativeBad = {};
+async function nativeOutputOk(kind, a) {
+  let bad = 0, lo = Infinity, hi = -Infinity; for (let i = 0; i < a.length; i++) { const v = a[i]; if (!Number.isFinite(v)) bad++; else { if (v < lo) lo = v; if (v > hi) hi = v; } }
+  const ok = bad <= a.length * (kind === 'depth' ? 0.001 : 0.5) && hi - lo > 1e-6;   // normal models may mark invalid pixels with NaN
+  if (window.rfNative && rfNative.log && !S['nativeChecked_' + kind]) { S['nativeChecked_' + kind] = true; rfNative.log(`${kind} output check: ${ok ? 'ok' : 'BROKEN'} · non-finite ${bad}/${a.length} · range ${lo}..${hi}`); }
+  if (ok) return true;
+  if (window.rfNative && rfNative.log) rfNative.log(`${kind}: native output broken (non-finite ${bad}/${a.length}, range ${lo}..${hi}), switching to WebGPU`);
+  S.nativeBad[kind] = true; S.nativeBad[kind + 'Cpu'] = true;   // neither native path for this model again this session
+  setStatus('runStatus', `The native runtime gave a broken ${kind} map. Switching the ${kind} model to the browser runtime and carrying on…`, 'err'); await tick();
+  await reloadModel(kind);
+  const sess = kind === 'depth' ? S.depthSess : S.normalSess;
+  if (!sess || sess.__native) throw new Error(`could not rebuild the ${kind} model in the browser runtime`);
+  return false;
+}
+async function reloadModel(kind) {
+  const src = S.modelSrc[kind]; if (!src) throw new Error('no model source to reload');
+  if (src.files) await loadLocal(kind, src.files);
+  else { const sel = kind === 'depth' ? 'depthSel' : 'normalSel'; if (src.hub) $(sel).value = src.hub; await loadKind(kind); }
 }
 const isSizeErr = e => /SafeInt|overflow|out of memory|memory access|Aborted|RangeError|allocation/i.test(String(e && (e.message || e)));
 async function depthTTA(t, Sres) {
@@ -2740,6 +2764,7 @@ async function normalRegion(t, RW, RH, flip) {
   catch (e) { if (/float16|type/i.test(String(e.message || e))) { mogeImgType = mogeImgType === 'float32' ? 'float16' : 'float32'; feeds[imgName] = mk(mogeImgType); res = await s.run(feeds); } else throw e; }
   const outName = s.outputNames.find(x => /normal/i.test(x)) || s.outputNames[1] || s.outputNames[0];
   const ot = res[outName], dims = ot.dims, raw = toF32(ot.data);
+  if (s.__native && !(await nativeOutputOk('normal', raw))) return normalRegion(t, RW, RH, flip);
   const mName = s.outputNames.find(x => /mask/i.test(x)); let mOut = null;
   if (mName && res[mName] && res[mName].data.length === RW * RH) mOut = Float32Array.from(toF32(res[mName].data));
   const pName = s.outputNames.find(x => /point/i.test(x)); let zOut = null;
@@ -4228,10 +4253,11 @@ $('btnSaveProj').onclick = saveProject;
 $('btnOpenProj').onclick = () => $('fileProject').click();
 $('appVer').textContent = 'v' + APP_VERSION;
 if (window.rfNative && window.rfNative.ort) {
-  $('nativeRow').hidden = false; const N = window.rfNative.ort;
-  $('nativeInfo').textContent = N.gpu ? `(${N.gpu} on this computer, falls back to WebGPU)` : '(CPU only on this computer, used if WebGPU is unavailable)';
-  try { $('useNative').checked = localStorage.getItem('reliefForge.native') !== '0'; } catch {}
-  $('useNative').onchange = () => { try { localStorage.setItem('reliefForge.native', $('useNative').checked ? '1' : '0'); } catch {}
+  const N = window.rfNative.ort; $('nativeRow').hidden = !N.gpu;
+  $('nativeInfo').textContent = '(native runtime; try it if WebGPU is slow or fails on this card)';
+  $('nativeCpuInfo').hidden = false; $('nativeCpuInfo').textContent = 'Desktop app: if WebGPU isn\u2019t available, the models run on the native CPU runtime (much faster than the browser\u2019s).';
+  try { $('useNative').checked = localStorage.getItem('reliefForge.nativeGpu') === '1'; } catch {}
+  $('useNative').onchange = () => { S.nativeBad = {}; try { localStorage.setItem('reliefForge.nativeGpu', $('useNative').checked ? '1' : '0'); } catch {}
     setStatus('gpuStat', 'Reload the models (Download & load) to switch runtime.'); };
 }
 document.addEventListener('keydown', e => {

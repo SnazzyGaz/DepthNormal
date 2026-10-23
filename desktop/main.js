@@ -14,6 +14,17 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-unsafe-webgpu');
   if (!process.argv.includes('--no-vulkan') && !process.env.RELIEF_FORGE_NO_VULKAN) app.commandLine.appendSwitch('enable-features', 'Vulkan');
 }
+// Use the fast graphics card on PCs that also have built-in graphics. Chromium is told directly; DirectML (and anything else
+// that asks Windows for "the" graphics card) follows Windows' per-app setting, which is written once for this exe unless
+// the person has already chosen one (Settings → System → Display → Graphics).
+app.commandLine.appendSwitch('force_high_performance_gpu');
+if (process.platform === 'win32') {
+  try {
+    const { spawnSync } = require('child_process'), KEY = 'HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences';
+    const q = spawnSync('reg', ['query', KEY, '/v', process.execPath], { windowsHide: true });
+    if (q.status !== 0) spawnSync('reg', ['add', KEY, '/v', process.execPath, '/t', 'REG_SZ', '/d', 'GpuPreference=2;', '/f'], { windowsHide: true });
+  } catch {}
+}
 // software WebGL when there is no usable GPU (virtual machines, remote desktops), so the 3D view still works, slowly.
 // Only this app's own pages run here, so the usual reason to keep it off doesn't apply.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -107,7 +118,7 @@ app.whenReady().then(() => {
     if (r.canceled || !r.filePath) return null;
     prefs.lastDir[kind] = path.dirname(r.filePath); savePrefs(); return r.filePath;
   });
-  ipcMain.on('rf-info', e => { e.returnValue = { version: app.getVersion(), platform: process.platform, modelDir: path.join(app.getPath('userData'), 'models'), noNative: process.argv.includes('--no-native') }; });
+  ipcMain.on('rf-info', e => { e.returnValue = { version: app.getVersion(), platform: process.platform, modelDir: path.join(app.getPath('userData'), 'models'), noNative: process.argv.includes('--no-native'), dmlOpt: ((process.argv.find(x => x.startsWith('--dml-opt=')) || '').split('=')[1] || 'all') }; });
   ipcMain.on('rf-log', (e, ...a) => log('page:', ...a));
 
   Menu.setApplicationMenu(Menu.buildFromTemplate([
