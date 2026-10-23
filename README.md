@@ -59,7 +59,8 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 | | |
 |---|---|
 | **Use in the browser** | [Open Relief Forge](https://snazzygaz.github.io/DepthNormal/) |
-| **Download** | Save [index.html](index.html) (or grab it from [Releases](../../releases)) and open it in Chrome |
+| **Desktop app** | Windows (portable .exe) and Linux (AppImage, .deb) from [Releases](../../releases/latest). Faster AI on Windows (DirectML), native save dialogs, works offline after the first run. See [desktop/](desktop/) |
+| **Download** | Save [index.html](index.html) and open it in Chrome |
 
 Open it in **Chrome** or **Edge**. No installation and no account are needed.
 

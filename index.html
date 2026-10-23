@@ -292,7 +292,7 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
         <div class="row" style="margin:6px 0 0"><button id="btnRestore" class="primary mini grow">Restore last session</button><button id="btnRestoreNo" class="mini ghost">Dismiss</button></div></div>
       <div class="status" id="projStatus"></div>
     </div>
-    <div class="card"><h3>Graphics</h3><div class="status" id="gpuStat" style="margin:0">Checking GPU…</div><div class="row" id="gpuRecRow" hidden style="margin:8px 0 0"><button id="btnGpuRecover" class="mini grow" title="Use after a graphics card error. Reloads the models (no download) and tries the graphics card again; if it’s still unavailable, uses the processor so you can carry on. Your work is kept.">Recover GPU &amp; reload models</button></div></div>
+    <div class="card"><h3>Graphics</h3><div class="status" id="gpuStat" style="margin:0">Checking GPU…</div><label class="chk" id="nativeRow" hidden style="margin-top:8px"><input type="checkbox" id="useNative" checked> Native AI runtime <span class="help" id="nativeInfo"></span></label><div class="row" id="gpuRecRow" hidden style="margin:8px 0 0"><button id="btnGpuRecover" class="mini grow" title="Use after a graphics card error. Reloads the models (no download) and tries the graphics card again; if it’s still unavailable, uses the processor so you can carry on. Your work is kept.">Recover GPU &amp; reload models</button></div></div>
     <div class="card">
       <h3>Depth model <span class="pill" id="epDepth">not loaded</span></h3>
       <select id="depthSel" style="width:100%">
@@ -2574,14 +2574,30 @@ async function fetchCached(url, label, prog, stat, done0, total) {
   return blob;
 }
 async function makeSession(model, external, pill) {
-  ort.env.wasm.wasmPaths = ORT_DIST;
-  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(8, navigator.hardwareConcurrency || 4) : 1;
+  const web = typeof ort !== 'undefined';   // the desktop app's native runtime works even if the web runtime didn't load
+  if (web) { ort.env.wasm.wasmPaths = ORT_DIST; ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(8, navigator.hardwareConcurrency || 4) : 1; }
   const opts = ep => ({ executionProviders: [ep], graphOptimizationLevel: 'all', ...(external.length ? { externalData: external } : {}) });
   let sess = null, ep = '';
-  if (navigator.gpu && !S.forceCpu) { try { sess = await ort.InferenceSession.create(model, opts('webgpu')); ep = 'webgpu'; watchGpuDevice(); }
+  // desktop app: the native ONNX Runtime (DirectML on Windows) is usually several times faster than WebGPU in the page
+  const N = window.rfNative && window.rfNative.ort;
+  if (N && $('useNative').checked && !S.forceCpu && N.gpu) {
+    try { sess = await nativeSession(N, model, external, 'gpu'); ep = 'native · ' + sess.__epName; }
+    catch (e) { console.warn('native GPU session failed', e); setStatus('gpuStat', 'Native GPU runtime failed, trying WebGPU: ' + String(e.message || e).slice(0, 200), 'err'); sess = null; } }
+  if (!sess && web && navigator.gpu && !S.forceCpu) { try { sess = await ort.InferenceSession.create(model, opts('webgpu')); ep = 'webgpu'; watchGpuDevice(); }
     catch (e) { console.warn('webgpu failed', e); setStatus('gpuStat', 'WebGPU session failed, using CPU: ' + String(e.message || e).slice(0, 300), 'err'); } }
-  if (!sess) { sess = await ort.InferenceSession.create(model, opts('wasm')); ep = 'wasm (CPU – slow)'; }
+  if (!sess && N && $('useNative').checked) { try { sess = await nativeSession(N, model, external, 'cpu'); ep = 'native · CPU'; } catch (e) { console.warn('native CPU session failed', e); sess = null; } }
+  if (!sess) { if (!web) throw new Error('the AI runtime could not be loaded (check the connection)'); sess = await ort.InferenceSession.create(model, opts('wasm')); ep = 'wasm (CPU – slow)'; }
   sess.__ep = ep; $(pill).textContent = ep; return sess;
+}
+const mkTensor = (type, data, dims) => typeof ort !== 'undefined' ? new ort.Tensor(type, data, dims) : { type, data, dims };   // plain object for the native runtime if the web one didn't load
+// a session in the desktop app's native runtime, shaped like an onnxruntime-web one (inputNames, outputNames, run, release)
+async function nativeSession(N, model, external, dev) {
+  const info = await N.create(model, external.map(e => ({ path: e.path, data: e.data })), dev);
+  const plain = t => ({ type: t.type, dims: Array.from(t.dims), data: t.data });
+  return { inputNames: info.inputNames, outputNames: info.outputNames, __epName: info.ep, __native: true,
+    async run(feeds) { const f = {}; for (const k in feeds) f[k] = plain(feeds[k]); const out = await N.run(info.id, f), res = {};
+      for (const k in out) res[k] = { type: out[k].type, dims: out[k].dims, data: out[k].data, dispose() {} }; return res; },
+    async release() { try { await N.release(info.id); } catch {} } };
 }
 // ---------- GPU loss & recovery ----------
 // A driver reset (out of video memory, a game or video grabbing the GPU, a driver hiccup) kills the WebGPU device. The image,
@@ -2687,7 +2703,7 @@ async function depthRegion(t, Sres, flip) {
   const d = grabRegion(t, Sres, Sres, flip), n = Sres * Sres;
   const mk = type => { const a = type === 'float16' ? new Uint16Array(3 * n) : new Float32Array(3 * n);
     for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) { const v = (d[i * 4 + c] / 255 - MEAN[c]) / STD[c]; a[c * n + i] = type === 'float16' ? Core.toHalf(v) : v; }
-    return new ort.Tensor(type, a, [1, 3, Sres, Sres]); };
+    return mkTensor(type, a, [1, 3, Sres, Sres]); };
   const s = S.depthSess, inName = s.inputNames.find(x => /pixel|image|input/i.test(x)) || s.inputNames[0]; let res;
   try { res = await s.run({ [inName]: mk(depthImgType) }); }
   catch (e) { if (!/float16|float|type/i.test(String(e.message || e)) || isSizeErr(e)) throw e; depthImgType = depthImgType === 'float16' ? 'float32' : 'float16'; res = await s.run({ [inName]: mk(depthImgType) }); }
@@ -2714,11 +2730,11 @@ async function depthTTA0(t, Sres) {
 let mogeImgType = 'float32';
 async function normalRegion(t, RW, RH, flip) {
   const d = grabRegion(t, RW, RH, flip), n = RW * RH, s = S.normalSess;
-  const mk = type => { if (type === 'float16') { const a = new Uint16Array(3 * n); for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) a[c * n + i] = Core.toHalf(d[i * 4 + c] / 255); return new ort.Tensor('float16', a, [1, 3, RH, RW]); }
-    const a = new Float32Array(3 * n); for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) a[c * n + i] = d[i * 4 + c] / 255; return new ort.Tensor('float32', a, [1, 3, RH, RW]); };
+  const mk = type => { if (type === 'float16') { const a = new Uint16Array(3 * n); for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) a[c * n + i] = Core.toHalf(d[i * 4 + c] / 255); return mkTensor('float16', a, [1, 3, RH, RW]); }
+    const a = new Float32Array(3 * n); for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) a[c * n + i] = d[i * 4 + c] / 255; return mkTensor('float32', a, [1, 3, RH, RW]); };
   const feeds = {}, imgName = s.inputNames.find(x => /image|pixel|input/i.test(x)) || s.inputNames[0];
   const tokName = s.inputNames.find(x => /token/i.test(x));
-  if (tokName) feeds[tokName] = new ort.Tensor('int64', BigInt64Array.from([BigInt(S.tokOverride || +$('nTok').value)]), []);
+  if (tokName) feeds[tokName] = mkTensor('int64', BigInt64Array.from([BigInt(S.tokOverride || +$('nTok').value)]), []);
   let res;
   try { feeds[imgName] = mk(mogeImgType); res = await s.run(feeds); }
   catch (e) { if (/float16|type/i.test(String(e.message || e))) { mogeImgType = mogeImgType === 'float32' ? 'float16' : 'float32'; feeds[imgName] = mk(mogeImgType); res = await s.run(feeds); } else throw e; }
@@ -4086,7 +4102,7 @@ const SAVE_TYPES = { png: { description: 'PNG image', accept: { 'image/png': ['.
   json: { description: 'JSON file', accept: { 'application/json': ['.json'] } } };
 async function saveAs(name, kind, make) {
   const N = window.rfNative;
-  if (N && N.chooseSave) { const path = await N.chooseSave(name, kind); if (!path) return null; await N.writeFile(path, await make()); return String(path).split(/[\\/]/).pop(); }
+  if (N && N.chooseSave) { const path = await N.chooseSave(name, kind); if (!path) return null; const b = await make(); await N.writeFile(path, new Uint8Array(await b.arrayBuffer())); return String(path).split(/[\\/]/).pop(); }
   if (window.showSaveFilePicker) {
     let h = null;
     try { h = await window.showSaveFilePicker({ suggestedName: name, id: 'rf-' + kind, types: [SAVE_TYPES[kind]] }); }
@@ -4211,6 +4227,13 @@ $('btnStl').onclick = exportSTL;
 $('btnSaveProj').onclick = saveProject;
 $('btnOpenProj').onclick = () => $('fileProject').click();
 $('appVer').textContent = 'v' + APP_VERSION;
+if (window.rfNative && window.rfNative.ort) {
+  $('nativeRow').hidden = false; const N = window.rfNative.ort;
+  $('nativeInfo').textContent = N.gpu ? `(${N.gpu} on this computer, falls back to WebGPU)` : '(CPU only on this computer, used if WebGPU is unavailable)';
+  try { $('useNative').checked = localStorage.getItem('reliefForge.native') !== '0'; } catch {}
+  $('useNative').onchange = () => { try { localStorage.setItem('reliefForge.native', $('useNative').checked ? '1' : '0'); } catch {}
+    setStatus('gpuStat', 'Reload the models (Download & load) to switch runtime.'); };
+}
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return; const k = e.key.toLowerCase();
   if (k === 's') { e.preventDefault(); if (!$('btnSaveProj').disabled) saveProject(); }
@@ -4422,7 +4445,7 @@ millUI();
     setStatus('gpuStat', `WebGPU OK · ${name} · fp16 ${f16 ? 'yes' : 'NO (fp16 depth model may fall back to CPU – try q4f16 or a newer driver)'} · max buffer ${mb} MB`, f16 ? 'ok' : 'err');
   } catch (e) { setStatus('gpuStat', 'WebGPU adapter request failed: ' + (e.message || e), 'err'); }
 })();
-if (typeof ort === 'undefined') setStatus('statDepth', 'Could not load onnxruntime-web from jsdelivr. Check your connection.', 'err');
+if (typeof ort === 'undefined' && !(window.rfNative && window.rfNative.ort)) setStatus('statDepth', 'Could not load onnxruntime-web from jsdelivr. Check your connection.', 'err');
 window.__relief = { S, P, Core, compose, runPasses, setView, goStep, T3, baseDepth, activeNormal, currentMask, currentAlpha };
 updateSteps();
 })();

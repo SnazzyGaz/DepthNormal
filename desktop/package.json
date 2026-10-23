@@ -1,0 +1,92 @@
+{
+  "name": "relief-forge",
+  "productName": "Relief Forge",
+  "version": "2.0.0",
+  "description": "Turn a picture into a carvable relief: height maps and STLs for CNC, laser, 3D printing and moulds.",
+  "main": "main.js",
+  "private": true,
+  "author": "SnazzyGaz",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "homepage": "https://snazzygaz.github.io/DepthNormal/",
+  "scripts": {
+    "prepare-app": "node scripts/prepare.js",
+    "start": "npm run prepare-app && electron .",
+    "dist:win": "npm run prepare-app && electron-builder --win --x64 --publish never",
+    "dist:linux": "npm run prepare-app && electron-builder --linux --x64 --publish never"
+  },
+  "dependencies": {
+    "onnxruntime-node": "1.30.0"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "io.github.snazzygaz.reliefforge",
+    "productName": "Relief Forge",
+    "copyright": "© 2026 Garyck Arntzen",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/bin/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
+      ]
+    },
+    "portable": {
+      "artifactName": "Relief-Forge-${version}-windows-portable.exe"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Graphics",
+      "maintainer": "SnazzyGaz <https://github.com/SnazzyGaz>",
+      "synopsis": "Turn a picture into a carvable relief",
+      "artifactName": "Relief-Forge-${version}-linux-${arch}.${ext}",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SnazzyGaz/DepthNormal.git"
+  }
+}
