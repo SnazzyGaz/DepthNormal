@@ -1,6 +1,7 @@
 # Builds the Relief Forge desktop app on GitHub's own machines.
 #  - Push a tag like v2.0.1  -> Windows portable .exe and .zip + Linux AppImage and .deb, attached to a draft Release.
 #  - Run it by hand (Actions tab -> Desktop build -> Run workflow) -> the same files as downloadable artifacts, no Release.
+# latest.yml / latest-linux.yml (+ .blockmap) are what the installed app's updater reads: it only sees PUBLISHED releases.
 # Every file gets a build-provenance attestation: proof it was built here, from this repo, at that commit.
 # Check a download with:  gh attestation verify <file> --repo SnazzyGaz/DepthNormal
 name: Desktop build
@@ -21,11 +22,14 @@ jobs:
             files: |
               desktop/dist/*.exe
               desktop/dist/*.zip
+              desktop/dist/*.blockmap
+              desktop/dist/latest.yml
           - os: ubuntu-24.04
             target: linux
             files: |
               desktop/dist/*.AppImage
               desktop/dist/*.deb
+              desktop/dist/latest-linux.yml
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
