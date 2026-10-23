@@ -132,7 +132,28 @@ app.whenReady().then(() => {
       { label: 'User guide (PDF)', click: () => shell.openExternal(REPO + '/blob/main/docs/Relief-Forge-Basics.pdf') }] },
   ]));
   const win = createWindow();
+  setupUpdates(win);
   app.on('second-instance', () => { if (win.isMinimized()) win.restore(); win.focus(); });
 });
 app.on('window-all-closed', () => app.quit());
+
+// ---------- updates: new versions come from the GitHub Releases (published ones, not drafts) ----------
+// Only for the installed Windows app (setup.exe) and the Linux AppImage: those are the ones that can replace themselves.
+// The update downloads in the background; the page shows a small banner with "Restart to update".
+function setupUpdates(win) {
+  const installed = process.platform === 'win32' ? fs.existsSync(path.join(path.dirname(process.execPath), 'Uninstall Relief Forge.exe'))
+    : process.platform === 'linux' ? !!process.env.APPIMAGE : false;
+  if (!app.isPackaged || !installed || process.argv.includes('--no-updates')) { log('updates: off (' + (!app.isPackaged ? 'not packaged' : !installed ? 'not an installed copy' : 'switched off') + ')'); return; }
+  let au; try { au = require('electron-updater').autoUpdater; } catch (e) { log('updates: unavailable', e); return; }
+  au.logger = { info: m => log('updates:', String(m)), warn: m => log('updates warn:', String(m)), error: m => log('updates error:', String(m)), debug: () => {} };
+  au.autoDownload = true; au.autoInstallOnAppQuit = true;
+  const send = d => { if (!win.isDestroyed()) win.webContents.send('rf-update', d); };
+  au.on('update-available', i => send({ state: 'downloading', version: i.version, percent: 0 }));
+  au.on('download-progress', p => send({ state: 'downloading', percent: Math.round(p.percent || 0) }));
+  au.on('update-downloaded', i => send({ state: 'ready', version: i.version }));
+  au.on('error', e => log('updates error:', e));
+  ipcMain.on('rf-update-install', () => { log('updates: restarting to install'); au.quitAndInstall(false, true); });
+  const check = () => au.checkForUpdates().catch(e => log('updates: check failed', e));
+  setTimeout(check, 8000); setInterval(check, 6 * 3600e3);
+}
 app.on('child-process-gone', (e, d) => log('child process gone', d));

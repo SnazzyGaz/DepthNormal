@@ -160,6 +160,9 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 html.desktop .viewbar,html.desktop .brand{-webkit-app-region:drag;user-select:none}
 html.desktop .viewbar button,html.desktop .viewbar select,html.desktop .viewbar input,html.desktop .viewbar label,html.desktop .brand button{-webkit-app-region:no-drag}
 html.desktop .viewbar{padding-right:calc(14px + 138px)}
+.updbar{position:fixed;right:16px;bottom:16px;z-index:900;display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--accline);border-radius:10px;padding:8px 10px 8px 14px;box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:12.5px;color:var(--ink2)}
+.updbar b{color:var(--acc2);font-weight:600}
+.updbar .x{background:none;border:0;color:var(--mute);padding:2px 4px;cursor:pointer}
 .seg{display:flex;justify-content:center;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px;flex-wrap:wrap}
 .tab{all:unset;cursor:pointer;padding:6px 11px;border-radius:6px;color:var(--mute);font-size:12.5px;font-weight:500;white-space:nowrap}
 .tab:hover:not(:disabled){color:var(--ink)}
@@ -271,6 +274,7 @@ html.desktop .viewbar{padding-right:calc(14px + 138px)}
 </head>
 <body>
 <script>if (window.rfNative && window.rfNative.frameless) document.documentElement.classList.add('desktop');   // desktop app without a Windows title bar</script>
+<div class="updbar" id="updBar" hidden role="status"><span id="updMsg"></span><button id="updBtn" class="mini primary" type="button" hidden>Restart to update</button><button class="x" id="updX" type="button" title="Hide (it installs when you close the app)">✕</button></div>
 <div class="app">
 <aside class="side">
   <div class="brand">
@@ -4257,6 +4261,15 @@ $('btnStl').onclick = exportSTL;
 $('btnSaveProj').onclick = saveProject;
 $('btnOpenProj').onclick = () => $('fileProject').click();
 $('appVer').textContent = 'v' + APP_VERSION;
+// desktop app: a new version downloads in the background; offer to restart into it (otherwise it installs when the app closes)
+if (window.rfNative && window.rfNative.onUpdate) {
+  let ver = '', hidden = false;
+  rfNative.onUpdate(d => { if (d.version) ver = d.version; if (hidden && d.state !== 'ready') return; hidden = false; $('updBar').hidden = false;
+    if (d.state === 'ready') { $('updMsg').innerHTML = `<b>Relief Forge ${ver}</b> is ready.`; $('updBtn').hidden = false; }
+    else { $('updMsg').innerHTML = `Downloading <b>Relief Forge ${ver}</b>… ${d.percent || 0}%`; $('updBtn').hidden = true; } });
+  $('updBtn').onclick = async () => { $('updBtn').disabled = true; $('updMsg').textContent = 'Saving your session, then restarting…'; try { if (S.depth) await autosaveNow(); } catch {} rfNative.installUpdate(); };
+  $('updX').onclick = () => { hidden = true; $('updBar').hidden = true; };
+}
 if (window.rfNative && window.rfNative.ort) {
   const N = window.rfNative.ort; $('nativeRow').hidden = !N.gpu;
   $('nativeInfo').textContent = '(native runtime; try it if WebGPU is slow or fails on this card)';

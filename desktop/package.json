@@ -15,6 +15,7 @@
     "dist:linux": "npm run prepare-app && electron-builder --linux --x64 --publish never"
   },
   "dependencies": {
+    "electron-updater": "6.8.10",
     "onnxruntime-node": "1.30.0"
   },
   "devDependencies": {
@@ -103,7 +104,14 @@
       "artifactName": "Relief-Forge-${version}-windows-setup.exe",
       "shortcutName": "Relief Forge",
       "deleteAppDataOnUninstall": false
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "SnazzyGaz",
+        "repo": "DepthNormal"
+      }
+    ]
   },
   "repository": {
     "type": "git",

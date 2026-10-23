@@ -54,6 +54,8 @@ const allowed = new Set();   // only paths the person picked in a save dialog ca
 contextBridge.exposeInMainWorld('rfNative', {
   platform: info.platform, version: info.version, frameless: !!info.frameless,
   log: (...a) => ipcRenderer.send('rf-log', ...a.map(x => String(x).slice(0, 1000))),
+  onUpdate: cb => ipcRenderer.on('rf-update', (e, d) => cb(d)),
+  installUpdate: () => ipcRenderer.send('rf-update-install'),
   chooseSave: async (name, kind) => { const p = await ipcRenderer.invoke('rf-choose-save', name, kind); if (p) allowed.add(p); return p; },
   writeFile: async (p, data) => { if (!allowed.has(p)) throw new Error('not a chosen save location'); allowed.delete(p); await fs.promises.writeFile(p, data); },
   ort: ort ? { gpu: GPU_EP ? GPU_EP[1] : null, create, run, release } : null,

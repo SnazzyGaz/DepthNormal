@@ -16,6 +16,8 @@ GitHub builds them (`.github/workflows/desktop.yml`). Push a tag such as `v2.0.1
 - `Relief-Forge-<version>-linux-x86_64.AppImage`: `chmod +x` it and run it (Ubuntu 22.04+ needs `sudo apt install libfuse2`)
 - `Relief-Forge-<version>-linux-amd64.deb`: `sudo apt install ./Relief-Forge-<version>-linux-amd64.deb`
 
+**Updates:** the installed Windows app (setup.exe) and the Linux AppImage check the Releases page on start and every few hours. A new **published** release downloads in the background, then a banner offers *Restart to update* (or it installs when you close the app). Drafts are ignored, so nothing reaches people until you press Publish. The .zip, portable .exe and .deb are updated by downloading the new file.
+
 The files aren't code-signed, so Windows SmartScreen asks to confirm the first time (More info → Run anyway). Each file has a build-provenance attestation instead: `gh attestation verify <file> --repo SnazzyGaz/DepthNormal`.
 
 On Linux, if the window is black or glitchy, start it with `--no-vulkan`.
