@@ -28,6 +28,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 Manrope,syste
 .brand svg{flex:none}
 .brand h1{font-size:17px;font-weight:600;letter-spacing:-.01em;margin:0}
 .brand p{margin:0;color:var(--mute);font-size:11.5px}
+.hdrbtns{margin-left:auto;display:flex;gap:4px}
+.hdrstat{margin:-6px 18px 6px;font-size:11.5px}
+.hdrstat:empty{display:none}
 .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 12px 12px;border-bottom:1px solid var(--line)}
 .step{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px 7px;border-radius:8px;color:var(--mute);font-size:11.5px;font-weight:500;transition:background .15s,color .15s}
 .step:hover{background:var(--card);color:var(--ink2)}
@@ -267,8 +270,10 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 <aside class="side">
   <div class="brand">
     <svg width="40" height="24" viewBox="4 2 120 72" aria-hidden="true"><defs><linearGradient id="rfga1" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#f4f4f2"/><stop offset="0.55" stop-color="#c9c9c6"/><stop offset="1" stop-color="#8e8f8c"/></linearGradient><mask id="rfma1" maskUnits="userSpaceOnUse" x="0" y="0" width="130" height="80"><rect width="130" height="80" fill="#fff"/><path d="M8 70 L45 20 L82 70 Z M67 5 L79 20 L67 35 L55 20 Z" stroke="#000" stroke-width="6"/></mask></defs><path class="m3" d="M86 31 L120 70 L52 70 Z" fill="url(#rfga1)" mask="url(#rfma1)"/><path class="m1" d="M8 70 L45 20 L82 70 Z" fill="url(#rfga1)"/><path class="m2" d="M67 5 L79 20 L67 35 L55 20 Z" fill="url(#rfga1)"/></svg>
-    <div><h1>Relief <span style="color:var(--acc)">Forge</span></h1><p>Image to depth</p></div>
+    <div><h1>Relief <span style="color:var(--acc)">Forge</span></h1><p>Image to depth · <span id="appVer"></span></p></div>
+    <div class="hdrbtns"><button id="btnOpenProj" class="mini ghost" type="button" title="Open a saved .relief project (Ctrl+O). You can also drop one anywhere on the window.">Open</button><button id="btnSaveProj" class="mini" type="button" disabled title="Save everything (image, maps, settings, brushwork) as one .relief project (Ctrl+S)">Save</button></div>
   </div>
+  <div class="status hdrstat" id="saveStatus"></div>
   <nav class="steps" role="tablist">
     <button class="step on" data-step="setup"><span class="n">1</span>Setup</button>
     <button class="step" data-step="generate"><span class="n">2</span>Generate</button>
@@ -438,14 +443,9 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
   <!-- ============ 4 EXPORT ============ -->
   <div class="pane" data-pane="export" hidden>
     <div class="card">
-      <h3>File name</h3>
-      <div class="row" style="margin:0"><input type="text" id="outName" class="grow" placeholder="relief" spellcheck="false" autocomplete="off"></div>
-      <div class="help" style="margin-top:6px">Used for every download below (PNG, normal map, STL, project). Leave blank for the automatic name.</div>
-    </div>
-    <div class="card">
       <h3>Height map</h3>
       <p class="lead">A greyscale picture of the relief: white is high, black is low. Load it into CNC, laser or 3D software. Use 16-bit for CNC: smoother slopes.</p>
-      <div class="row"><button id="btnPng16" class="primary grow" disabled>Download 16-bit PNG</button><button id="btnPng8" disabled>8-bit</button></div>
+      <div class="row"><button id="btnPng16" class="primary grow" disabled>Save 16-bit PNG…</button><button id="btnPng8" disabled>8-bit…</button></div>
       <div class="status" id="expStatus"></div>
     </div>
     <div class="card">
@@ -469,19 +469,13 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
         <span>Bed size</span><span class="unit"><input type="number" id="bedW" value="211" min="20" max="2000" step="1"> × <input type="number" id="bedH" value="118" min="20" max="2000" step="1"> mm</span>
       </div>
       <div class="help" id="stlEst" style="margin-top:8px"></div>
-      <div class="row"><button id="btnStl" class="primary grow" disabled>Download STL</button></div>
+      <div class="row"><button id="btnStl" class="primary grow" disabled>Save STL…</button></div>
       <div class="status" id="stlStatus"></div>
     </div>
     <div class="card">
       <h3>Normal map</h3>
       <p class="lead">A colour map of which way each bit of surface faces, for games and 3D software. Not needed for carving.</p>
-      <div class="row"><button id="btnNrmPng" disabled>Download normal PNG</button></div>
-    </div>
-    <div class="card">
-      <h3>Project</h3>
-      <p class="lead">Saves everything (image, maps and settings) in one <b>.relief</b> file, so you can carry on later.</p>
-      <div class="row"><button id="btnSaveProj" class="grow" disabled>Save project</button></div>
-      <div class="status" id="saveStatus"></div>
+      <div class="row"><button id="btnNrmPng" disabled>Save normal PNG…</button></div>
     </div>
     <div class="card">
       <h3>Check before you make it</h3>
@@ -3948,6 +3942,8 @@ async function exportSTL() {
   if (!S.depth) return;
   const p = stlPlan(); $('btnStl').disabled = true;
   try {
+    const multi = p.tiles.length > 1;
+    const nm = await saveAs(multi ? `${S.imgName}_relief_${p.tx}x${p.ty}_tiles.zip` : p.tiles[0].name, multi ? 'zip' : 'stl', async () => {
     setStatus('stlStatus', 'Computing full-resolution relief…');
     let H = S.relief; if (S.reliefHalf || !H) { clearTimeout(S.composeTimer); H = await compose(false); } if (!H) throw new Error('no relief');
     H = mirrorOut(H, S.reliefW, S.reliefH);
@@ -3956,9 +3952,10 @@ async function exportSTL() {
     let files;
     if (WK.ok) files = (await wkCall('stl', { w: S.reliefW, h: S.reliefH, opt, tiles: p.tiles }, { relief: H })).files;
     else { await tick(); files = p.tiles.map(t => ({ name: t.name, buf: Core.buildSTL(H, S.reliefW, S.reliefH, { ...opt, ...t.range }) })); }
-    if (files.length === 1) download(new Blob([files[0].buf], { type: 'model/stl' }), files[0].name);
-    else download(Core.zipBuild(files.map(f => { const u = new Uint8Array(f.buf); return { name: f.name, data: u, crc: Core.crc32(u), size: u.length, method: 0 }; })), `${outBase() || S.imgName + '_relief'}_${p.tx}x${p.ty}_tiles.zip`);
-    setStatus('stlStatus', `Saved ${files.length > 1 ? files.length + ' tiles as ZIP' : files[0].name} · ${(p.bytes / 1e6).toFixed(0)} MB.`, 'ok');
+    return files.length === 1 ? new Blob([files[0].buf], { type: 'model/stl' })
+      : Core.zipBuild(files.map(f => { const u = new Uint8Array(f.buf); return { name: f.name, data: u, crc: Core.crc32(u), size: u.length, method: 0 }; })); });
+    if (nm == null) setStatus('stlStatus', 'Not saved.');
+    else setStatus('stlStatus', `Saved ${nm}${multi ? ` (${p.tiles.length} tiles)` : ''} · ${(p.bytes / 1e6).toFixed(0)} MB.`, 'ok');
   } catch (e) { console.error(e); setStatus('stlStatus', 'STL failed: ' + (e.message || e).split('\n')[0], 'err'); }
   $('btnStl').disabled = !S.depth;
 }
@@ -4007,16 +4004,17 @@ async function packProject() {
     const addFile = async (key, f) => { if (!f) return; const nm = key + '.' + extOf(f); files[key] = nm; const c = PACKC.get(f);
       if (c && c.key === nm) { entries.push(c.entry); return; } const e = await zipEntry(nm, new Uint8Array(await f.arrayBuffer())); entries.push(e); PACKC.set(f, { key: nm, entry: e }); };
     await addFile('image', S.imgFile); await addFile('normal_upload', S.nrmFile); await addFile('mask_upload', S.maskFile);
-    const J = { app: 'relief-forge', version: 1, saved: new Date().toISOString(), imgName: S.imgName, W: S.W, H: S.H, maps, files, settings: settingsSnapshot() };
+    const J = { app: 'relief-forge', version: 1, appVersion: APP_VERSION, saved: new Date().toISOString(), imgName: S.imgName, W: S.W, H: S.H, maps, files, settings: settingsSnapshot() };
     entries.unshift(await zipEntry('project.json', new TextEncoder().encode(JSON.stringify(J, null, 1))));
     return Core.zipBuild(entries);
 }
 async function saveProject() {
   if (!S.depth || !S.img) return; $('btnSaveProj').disabled = true;
   try {
-    setStatus('saveStatus', 'Packing project…'); await tick();
-    const blob = await packProject(); download(blob, `${outBase() || S.imgName}.relief`);
-    setStatus('saveStatus', `Saved ${outBase() || S.imgName}.relief (${(blob.size / 1e6).toFixed(1)} MB).`, 'ok');
+    let size = '';
+    const nm = await saveAs(`${S.imgName}.relief`, 'relief', async () => { setStatus('saveStatus', 'Packing project…'); await tick(); const b = await packProject(); size = mb(b); return b; });
+    setStatus('saveStatus', nm == null ? '' : `Saved ${nm} (${size}).`, 'ok');
+    if (nm != null) setTimeout(() => { if ($('saveStatus').textContent.startsWith('Saved ' + nm)) setStatus('saveStatus', ''); }, 6000);
   } catch (e) { console.error(e); setStatus('saveStatus', 'Save failed: ' + e.message, 'err'); }
   $('btnSaveProj').disabled = !S.depth;
 }
@@ -4077,23 +4075,49 @@ async function openProject(file) {
   } catch (e) { console.error(e); setStatus('projStatus', 'Could not open project: ' + e.message, 'err'); }
 }
 // ---------- export ----------
-function outBase() { const v = ($('outName').value || '').trim().replace(/\.(png|stl|zip|relief)$/i, '').replace(/[\\/:*?"<>|]+/g, '-'); return v || null; }
+function outBase() { return null; }   // names are suggested per file; the save dialog is where you change them
+// ---------- saving: one place for every file that leaves the app ----------
+// Opens the save dialog first (browsers only allow it straight after a click), then builds the file and writes it there.
+// Chrome / Edge: the real Save dialog, remembering the last folder per kind of file. Other browsers: a normal download.
+// The desktop build can provide window.rfNative { chooseSave(name, kind) → path|null, writeFile(path, blob) } instead.
+const APP_VERSION = '2.0.0';
+const SAVE_TYPES = { png: { description: 'PNG image', accept: { 'image/png': ['.png'] } }, stl: { description: 'STL 3D model', accept: { 'model/stl': ['.stl'] } },
+  zip: { description: 'ZIP archive', accept: { 'application/zip': ['.zip'] } }, relief: { description: 'Relief Forge project', accept: { 'application/octet-stream': ['.relief'] } },
+  json: { description: 'JSON file', accept: { 'application/json': ['.json'] } } };
+async function saveAs(name, kind, make) {
+  const N = window.rfNative;
+  if (N && N.chooseSave) { const path = await N.chooseSave(name, kind); if (!path) return null; await N.writeFile(path, await make()); return String(path).split(/[\\/]/).pop(); }
+  if (window.showSaveFilePicker) {
+    let h = null;
+    try { h = await window.showSaveFilePicker({ suggestedName: name, id: 'rf-' + kind, types: [SAVE_TYPES[kind]] }); }
+    catch (e) { if (e && e.name === 'AbortError') return null; h = null; }   // cancelled; anything else falls back to a download
+    if (h) { const blob = await make(), w = await h.createWritable(); await w.write(blob); await w.close(); return h.name; }
+  }
+  const blob = await make(); download(blob, name); return name;
+}
+const mb = b => (b.size / 1e6).toFixed(1) + ' MB';
 function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
 // left-right flip for moulds: applied to what leaves the app (PNG, STL, 3D view), never to the 2D views, so brushes stay aligned
 function mirrorOut(H, w, h) { if (!$('mirrorMould').checked || !H) return H; const o = new Float32Array(H.length);
   for (let y = 0; y < h; y++) { const r = y * w; for (let x = 0; x < w; x++) o[r + x] = H[r + w - 1 - x]; } return o; }
 async function exportPNG(bits) {
-  if (!S.depth) return;
-  setStatus('expStatus', 'Computing full-resolution relief…'); await tick();
-  let H = S.relief; if (S.reliefHalf || !H) { clearTimeout(S.composeTimer); H = await compose(false); } if (!H) return;
-  setStatus('expStatus', 'Encoding PNG…'); await tick(); H = mirrorOut(H, S.reliefW, S.reliefH);
-  const ob = outBase(), blob = await Core.encodePNG(H, S.reliefW, S.reliefH, bits), name = ob ? `${ob}${bits === 8 ? '_8bit' : ''}.png` : `${S.imgName}_relief_${S.reliefW}x${S.reliefH}_${bits}bit.png`;
-  download(blob, name); setStatus('expStatus', `Saved ${name} (${(blob.size / 1e6).toFixed(1)} MB).`, 'ok');
+  if (!S.depth) return; let size = '';
+  try {
+    const nm = await saveAs(`${S.imgName}_relief_${S.W}x${S.H}_${bits}bit.png`, 'png', async () => {
+      setStatus('expStatus', 'Computing full-resolution relief…'); await tick();
+      let H = S.relief; if (S.reliefHalf || !H) { clearTimeout(S.composeTimer); H = await compose(false); } if (!H) throw new Error('no relief');
+      setStatus('expStatus', 'Encoding PNG…'); await tick(); H = mirrorOut(H, S.reliefW, S.reliefH);
+      const b = await Core.encodePNG(H, S.reliefW, S.reliefH, bits); size = mb(b); return b; });
+    setStatus('expStatus', nm == null ? 'Not saved.' : `Saved ${nm} (${size}).`, nm == null ? '' : 'ok');
+  } catch (e) { console.error(e); setStatus('expStatus', 'Save failed: ' + (e.message || e), 'err'); }
 }
 function exportNormal() {
   const n = activeNormal(); if (!n) return;
-  const c = document.createElement('canvas'); c.width = S.W; c.height = S.H; c.getContext('2d').putImageData(normalImageData(n, S.W, S.H), 0, 0);
-  c.toBlob(b => { const name = outBase() ? `${outBase()}_normal.png` : `${S.imgName}_normal_GL_${S.W}x${S.H}.png`; download(b, name); setStatus('expStatus', 'Saved ' + name, 'ok'); }, 'image/png');
+  saveAs(`${S.imgName}_normal_GL_${S.W}x${S.H}.png`, 'png', () => new Promise((res, rej) => {
+    const c = document.createElement('canvas'); c.width = S.W; c.height = S.H; c.getContext('2d').putImageData(normalImageData(n, S.W, S.H), 0, 0);
+    c.toBlob(b => b ? res(b) : rej(new Error('could not encode')), 'image/png'); }))
+    .then(nm => setStatus('expStatus', nm == null ? 'Not saved.' : 'Saved ' + nm, nm == null ? '' : 'ok'))
+    .catch(e => { console.error(e); setStatus('expStatus', 'Save failed: ' + (e.message || e), 'err'); });
 }
 
 // ---------- io ----------
@@ -4116,7 +4140,6 @@ function updateButtons() {
   $('btnRun').disabled = !(S.depthSess && S.img) || S.busy;
   $('btnRun').textContent = S.normalSess ? 'Run depth + normal passes' : (S.nrmImg ? 'Run depth pass (uploaded normals)' : 'Run passes');
   $('btnPng16').disabled = $('btnPng8').disabled = !S.depth || S.busy;
-  $('outName').placeholder = S.imgName ? `${S.imgName}_relief (automatic)` : 'automatic';
   $('btnStl').disabled = !S.depth || S.busy; updateStlEst();
   $('btnSaveProj').disabled = !S.depth || !S.img || S.busy;
   $('btnNrmPng').disabled = !activeNormal() || S.busy;
@@ -4186,6 +4209,16 @@ $('sB').addEventListener('change', () => { if (S.view === '3d') show3D(); });
 ['sW', 'sD', 'sB', 'bedW', 'bedH'].forEach(id => $(id).addEventListener('input', updateStlEst));
 $('btnStl').onclick = exportSTL;
 $('btnSaveProj').onclick = saveProject;
+$('btnOpenProj').onclick = () => $('fileProject').click();
+$('appVer').textContent = 'v' + APP_VERSION;
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return; const k = e.key.toLowerCase();
+  if (k === 's') { e.preventDefault(); if (!$('btnSaveProj').disabled) saveProject(); }
+  else if (k === 'o') { e.preventDefault(); $('fileProject').click(); } });
+// a .relief project (or an image) dropped anywhere on the window opens it; the image drop box handles its own drops
+document.addEventListener('dragover', e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+document.addEventListener('drop', e => { if (e.defaultPrevented) return; const f = e.dataTransfer && e.dataTransfer.files[0]; if (!f) return; e.preventDefault();
+  if (/\.(relief|zip)$/i.test(f.name)) openProject(f); else if (/^image\//.test(f.type)) onImage(f); });
 $('fileProject').onchange = e => { const f = e.target.files[0]; if (f) openProject(f); e.target.value = ''; };
 $('m3d').onchange = () => { if (T3.mesh) { const m = material3D($('m3d').value); T3.mesh.material = m; T3.slab.material = m; T3.dirty = true; } };
 $('l3d').oninput = light3D;
@@ -4327,7 +4360,7 @@ $('btnResetAll').onclick = () => { $('presetSel').value = ''; $('btnPresetDel').
   S.statusNote = 'All settings reset to neutral · '; const keep = {}; for (const k of ['edgeSmooth', 'edgeSoft', 'maskClean']) keep[k] = P[k];   // the mask itself stays as you set it
   applyPreset({ P: keep, layers: [], baseSrc: 'auto' }, { resetEdges: true }); };
 $('btnPresetExp').onclick = () => { const u = loadUserPresets(), cur = currentPreset(); delete u['Current settings']; const out = { app: 'relief-forge', version: 1, presets: { 'Current settings': cur, ...u } };   // live settings always included, plus saved presets
-  download(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), 'relief-forge-presets.json'); };
+  saveAs('relief-forge-presets.json', 'json', async () => new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' })).catch(console.error); };
 $('filePreset').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const j = JSON.parse(await f.text()); const u = loadUserPresets(), ps = { ...(j.presets || {}) };
     if (ps['Current settings']) { ps['Imported · ' + f.name.replace(/\.json$/i, '')] = ps['Current settings']; delete ps['Current settings']; }   // never store a stale "Current settings"
     Object.assign(u, ps); delete u['Current settings']; saveUserPresets(u); refreshPresets();
@@ -4360,7 +4393,7 @@ $('toolSel').onchange = () => { const t = loadTools()[$('toolSel').value]; $('to
 $('toolSave').onclick = () => { const name = (prompt('Name this tool (e.g. “1/16″ tapered ball”)', $('toolSel').value || '') || '').trim(); if (!name) return;
   const t = loadTools(); t[name] = toolNow(); if (!saveTools(t)) { $('millStatus').textContent = 'Browser storage unavailable: use Export to keep your tools as a file.'; return; } refreshTools(name); };
 $('toolDel').onclick = () => { const n = $('toolSel').value; if (!n) return; const t = loadTools(); delete t[n]; saveTools(t); refreshTools(''); };
-$('toolExp').onclick = () => download(new Blob([JSON.stringify({ app: 'relief-forge', kind: 'tools', version: 1, tools: loadTools() }, null, 1)], { type: 'application/json' }), 'relief-forge-tools.json');
+$('toolExp').onclick = () => saveAs('relief-forge-tools.json', 'json', async () => new Blob([JSON.stringify({ app: 'relief-forge', kind: 'tools', version: 1, tools: loadTools() }, null, 1)], { type: 'application/json' })).catch(console.error);
 $('toolImp').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try { const j = JSON.parse(await f.text()), add = j && j.tools; if (!add || typeof add !== 'object') throw new Error('no tools in this file');
     const t = loadTools(); let n = 0; for (const k in add) { const v = add[k]; if (v && typeof v === 'object') { const o = {}; for (const id of TOOL_IDS) if (v[id] != null) o[id] = String(v[id]); t[k] = o; n++; } }
