@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="docs/images/logo.svg" width="96" alt="">
+  <img src="docs/images/banner.jpg" alt="Relief Forge: turn images into sculptable reliefs. A photo becomes a depth map, then a relief ready for CNC, laser or 3D printing.">
 </p>
-
-<h1 align="center">Relief Forge</h1>
 
 <p align="center"><b>Turn a picture into a carvable relief.</b><br>
 Height maps and STLs for CNC, fibre-laser engraving, 3D printing and moulds, made in your browser.</p>
