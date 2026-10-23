@@ -1,7 +1,7 @@
 // Relief Forge desktop: the web app (app/index.html, copied from the repo root at build time) in its own window,
 // plus native save dialogs and the native ONNX Runtime (see preload.js).
 'use strict';
-const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, session, Menu } = require('electron');
+const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, session, Menu, crashReporter } = require('electron');
 const path = require('path'), fs = require('fs'), crypto = require('crypto');
 const { pathToFileURL } = require('url');
 
@@ -26,7 +26,13 @@ process.on('uncaughtException', e => { log('uncaught', e); try { dialog.showErro
 process.on('unhandledRejection', e => log('unhandled rejection', e));
 log('start', app.getVersion(), process.platform, process.arch, 'electron', process.versions.electron, process.argv.slice(1).join(' '));
 
+// native crashes leave a dump in <data folder>\Crashpad\reports (nothing is sent anywhere)
+try { crashReporter.start({ uploadToServer: false, compress: true }); log('crash dumps:', app.getPath('crashDumps')); } catch (e) { log('crash reporter failed', e); }
 if (!app.requestSingleInstanceLock()) { log('another copy is already running: handing over to it'); app.quit(); }
+else log('single-instance lock ok');
+app.on('will-finish-launching', () => log('finishing launch'));
+app.on('gpu-info-update', () => log('gpu info updated'));
+app.on('quit', (e, code) => log('quit, code', code));
 
 // ---------- small settings file: window size, last folder per kind of file ----------
 const prefsFile = () => path.join(app.getPath('userData'), 'prefs.json');

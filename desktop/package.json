@@ -42,6 +42,18 @@
     "win": {
       "target": [
         {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
           "target": "portable",
           "arch": [
             "x64"
@@ -53,7 +65,8 @@
         "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
         "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
         "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
-      ]
+      ],
+      "artifactName": "Relief-Forge-${version}-windows-${arch}.${ext}"
     },
     "portable": {
       "artifactName": "Relief-Forge-${version}-windows-portable.exe"
@@ -83,6 +96,13 @@
         "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
         "!node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**"
       ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "Relief-Forge-${version}-windows-setup.exe",
+      "shortcutName": "Relief Forge",
+      "deleteAppDataOnUninstall": false
     }
   },
   "repository": {

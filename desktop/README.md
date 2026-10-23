@@ -10,7 +10,9 @@ The web app (`../index.html`) in its own window, plus:
 
 GitHub builds them (`.github/workflows/desktop.yml`). Push a tag such as `v2.0.1` and a draft Release appears with:
 
-- `Relief-Forge-<version>-windows-portable.exe`: one file, no install
+- `Relief-Forge-<version>-windows-setup.exe`: installs for you only (no admin needed), with a Start menu entry. **Recommended.**
+- `Relief-Forge-<version>-windows-portable.exe`: one file, no install. It unpacks itself to the Temp folder on each start; on some PCs Temp's permissions stop Chromium's sandbox from reading it and the app closes at once (the zip or setup avoid this).
+- `Relief-Forge-<version>-windows-x64.zip`: the same app unpacked: extract it anywhere and run `Relief Forge.exe`. Starts faster and antivirus tools are calmer about it.
 - `Relief-Forge-<version>-linux-x86_64.AppImage`: `chmod +x` it and run it (Ubuntu 22.04+ needs `sudo apt install libfuse2`)
 - `Relief-Forge-<version>-linux-amd64.deb`: `sudo apt install ./Relief-Forge-<version>-linux-amd64.deb`
 
