@@ -1,5 +1,5 @@
 # Builds the Relief Forge desktop app on GitHub's own machines.
-#  - Push a tag like v2.0.1  -> Windows portable .exe + Linux AppImage and .deb, attached to a draft Release.
+#  - Push a tag like v2.0.1  -> Windows portable .exe and .zip + Linux AppImage and .deb, attached to a draft Release.
 #  - Run it by hand (Actions tab -> Desktop build -> Run workflow) -> the same files as downloadable artifacts, no Release.
 # Every file gets a build-provenance attestation: proof it was built here, from this repo, at that commit.
 # Check a download with:  gh attestation verify <file> --repo SnazzyGaz/DepthNormal
@@ -18,7 +18,9 @@ jobs:
         include:
           - os: windows-latest
             target: win
-            files: desktop/dist/*.exe
+            files: |
+              desktop/dist/*.exe
+              desktop/dist/*.zip
           - os: ubuntu-24.04
             target: linux
             files: |
