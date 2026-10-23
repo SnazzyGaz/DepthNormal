@@ -29,24 +29,32 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 
 ## Features
 
+**Making the relief**
 - **Image → height map** with Depth Anything 3 (depth) and MoGe-2 (normals), fused into one relief
-- **Tiled passes** for extra detail on large images
-- **Presets** for statues (shallow / deep), coins, challenge coins and emblems, plus your own saved presets
+- **Normals anchored to depth** base: crisp detail from the normals, front-to-back order from the depth, so faces don't tilt or bowl. *Depth anchoring size* sets the crossover
+- **Tiled passes** for extra detail on large images, and automatic removal of the faint grid the normal model leaves on flat areas
 - **Background masking**: automatic, flat-colour pick, transparency, or paint it yourself
+
+**Presets**
+- **Recommended** group, chosen by testing ~180 setting combinations and checked on 22 projects (coins, statues, animals, machines, photos and stone renders). New images start from *Anchored · all-rounder*
+- **Decide for me…** tries the Recommended presets on your image and shows them side by side with a scored pick
+- Older presets kept under **Legacy**, plus your own saved presets. Presets leave your edge settings alone
+
+**Shaping**
 - **Shape, finish and edge controls**: levelling, detail EQ, crease deepening, soft roll-off to the background
-- **Layers** to blend in other maps, before or after shaping
-- **Touch-up brush**: raise, lower and smooth directly on the result
+- **Rim lock** for coins: one exact rim profile all the way round, width found automatically (double-click)
+- **Mould draft**: slopes steep walls so casts release; only adds material at the foot of walls
+- **Layers** to blend in other maps, and a **touch-up brush** to raise, lower and smooth by hand
+- **Undo / redo** for settings (Ctrl+Z / Ctrl+Y)
+
+**Checking it**
 - **Live 3D showroom** with materials (metals, wood, stone, resin…), lighting, and a "skin" view of your original picture on the model
+- **Process sim**, a side check next to the result tabs: shows what a CNC bit (ball, tapered, V, flat, bull-nose, with stepover ridges), a filament or resin printer, or a laser can really make. As a colour-coded picture or in 3D at real size, with a plain-language result and a saved library of your tools
+
+**Saving**
 - **Export**: 16-bit PNG, STL (with optional silicone pour box and print-bed splitting), normal map, and `.relief` project files
 - **Mould mode**: invert and mirror for casting
-- **Autosave** with restore on the next start, **undo / redo** for settings (Ctrl+Z / Ctrl+Y), a saved **tool library** for the Process sim, and a **Picture / 3D switch** in the Process sim, which shows the made surface in 3D with the differences coloured on it
-- **Process sim** (own tab next to 3D): shows what a CNC bit (ball, tapered, V, flat, bull-nose, with stepover ridges), a filament or resin printer, or a laser can really make, with its own size and settings and a plain-language result
-- **Rim lock** (coins): one exact rim profile all the way round, with automatic rim width (double-click)
-- **Mould draft**: leans steep walls outward by a set angle so casts release cleanly; only adds material at the foot of walls
-- **Base: Normals · anchored to depth**: integrates the normals while staying close to the depth map at broad scale (screened Poisson). Fine detail comes from the normals, front-to-back order from the depth, so faces no longer tilt or bowl. *Depth anchoring size* sets the crossover
-- **Remove patch grid from normals** (Generate, on by default): finds and subtracts the faint square lattice the normal model leaves on flat backgrounds
-- **Recommended** preset group (first in the list; older presets kept under Legacy): five presets chosen by testing ~180 setting combinations on 7 real projects, then checked on 15 more. New images start from *Anchored · all-rounder*; presets keep your edge settings
-- **Decide for me…**: tries the five Recommended presets on your image and shows them side by side with a scored pick
+- **Autosave** with *Restore last session* on the next start, and **Recover GPU** after a graphics-driver reset without restarting the browser
 
 ## Get it
 
@@ -72,30 +80,35 @@ Open it in **Chrome** or **Edge**. No installation and no account are needed.
 |---|---|
 | **1 · Setup** | Load the depth and normal models. Slow only the first time. Or open a saved `.relief` project. |
 | **2 · Generate** | Add your picture and press **Run passes**. |
-| **3 · Sculpt** | Pick a preset, adjust the sliders, and watch the Shaded and 3D views update. |
+| **3 · Sculpt** | Pick a preset (or press **Decide for me…**), adjust the sliders, and watch the Shaded and 3D views update. Check it in **Process sim** if you like. |
 | **4 · Export** | Download the 16-bit height map, an STL, the normal map, or save the project. |
 
 ### Which preset?
 
+Start in the **Recommended** group at the top of the list.
+
 | Subject | Preset |
 |---|---|
+| Not sure / anything | **Anchored · all-rounder**, or press **Decide for me…** |
+| Coin, medal, badge, emblem | **Anchored · coin & medal** |
+| Statue, figure, creature | **Anchored · keeps volume** (most depth) or **Anchored · crisp contrast** (punchier) |
+| Scenes and textures | **Anchored · all-rounder** or **Crisp · classic base** |
 | Starting from scratch | **Neutral · base only** |
-| Not sure / anything | **NHeavyDat** |
-| Statue, figure, carving | **Statue · shallow** or **Statue · deep** |
-| Coin or medal with a face | **Coin · stepped portrait** or **Coin · crisp, keeps steps (OG2)** |
-| Busy challenge coin | **Coin · challenge / busy art** |
-| Badge, crest, emblem | **Emblem · stepped crest** |
 
 ![3D showroom](docs/images/3d.png)
+
+![Process sim in 3D: a 3 mm ball-nose on a 150 mm coin, red where the bit can't reach](docs/images/process-sim.png)
 
 The full walkthrough, with every panel explained in plain English, is in the **[user guide (PDF)](docs/Relief-Forge-Basics.pdf)**.
 
 ## Tips
 
-- **Input quality beats settings.** A sharp, clean, cut-out picture gives a cleaner relief than any slider can.
+- **Input quality beats settings.** A sharp, clean, cut-out picture gives a cleaner relief than any slider can. Crop to the subject.
+- For things with colour or shine (cars, clocks, animals), have an AI image editor turn the picture into **plain white stone on a plain background** first. Flat art such as signs and lettering works fine as it is.
 - Use the **16-bit PNG** for CNC and lasers. 8-bit gives visible steps.
 - **Shaded** is the easiest view for judging the result. **3D** shows how it will really look.
-- If you get a **"device lost"** error, close other GPU-heavy programs, lower *Normal detail*, and reload the page.
+- If you get a **"device lost"** or GPU error, press **Recover GPU** and run the passes again. Closing other GPU-heavy programs and lowering *Normal detail* helps.
+- Use **Process sim** before cutting or printing: red shows where your bit can't reach, so you know where a finer bit (rest pass) is needed.
 - Save a **project** (`.relief`) to come back later without re-running the AI.
 
 ## Licence
