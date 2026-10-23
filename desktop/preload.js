@@ -10,7 +10,8 @@ let ort = null, ortErr = '';
 // binding can't read those yet ("not enough space ... got 0"). Without Float16Array here (this preload world only) it keeps
 // plain Uint16Array, which works. The page itself is unaffected.
 try { delete globalThis.Float16Array; } catch {}
-try { ort = require('onnxruntime-node'); } catch (e) { ortErr = String(e && e.message || e); }
+if (info.noNative) ortErr = 'switched off with --no-native';
+else try { ort = require('onnxruntime-node'); ipcRenderer.send('rf-log', 'native runtime loaded'); } catch (e) { ortErr = String(e && e.message || e); ipcRenderer.send('rf-log', 'native runtime failed to load: ' + ortErr); }
 const GPU_EP = info.platform === 'win32' ? ['dml', 'DirectML'] : null;   // Linux: CUDA needs a matching CUDA/cuDNN install, so WebGPU is used there
 
 // models are written to disk once (by a fingerprint of their bytes) and loaded from there: external-data models need real files
@@ -31,7 +32,9 @@ async function create(model, externals, dev) {
   for (const e of externals || []) writeIfMissing(path.join(dir, path.basename(e.path)), Buffer.from(e.data.buffer, e.data.byteOffset, e.data.byteLength));
   const opts = dev === 'gpu' ? { executionProviders: [GPU_EP[0]], enableMemPattern: false, executionMode: 'sequential', graphOptimizationLevel: 'all' }
     : { executionProviders: ['cpu'], graphOptimizationLevel: 'all', intraOpNumThreads: Math.max(1, os.cpus().length) };
-  const s = await ort.InferenceSession.create(file, opts), id = nextId++;
+  ipcRenderer.send('rf-log', 'creating session', dev, opts.executionProviders[0], (model.length / 1e6).toFixed(0) + ' MB');
+  let s; try { s = await ort.InferenceSession.create(file, opts); } catch (e) { ipcRenderer.send('rf-log', 'session failed: ' + String(e && e.message || e)); throw e; }
+  const id = nextId++; ipcRenderer.send('rf-log', 'session ready', dev);
   sessions.set(id, s);
   return { id, inputNames: s.inputNames.slice(), outputNames: s.outputNames.slice(), ep: dev === 'gpu' ? GPU_EP[1] : 'CPU' };
 }

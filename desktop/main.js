@@ -18,7 +18,15 @@ if (process.platform === 'linux') {
 // Only this app's own pages run here, so the usual reason to keep it off doesn't apply.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 
-if (!app.requestSingleInstanceLock()) { app.quit(); }
+// ---------- startup log: %APPDATA%\Relief Forge\main.log (Linux: ~/.config/Relief Forge/main.log) ----------
+let logFile = null;
+function log(...a) { try { if (!logFile) { logFile = path.join(app.getPath('userData'), 'main.log'); fs.mkdirSync(path.dirname(logFile), { recursive: true }); if (fs.existsSync(logFile) && fs.statSync(logFile).size > 2e6) fs.unlinkSync(logFile); }
+  fs.appendFileSync(logFile, new Date().toISOString() + ' ' + a.map(x => x instanceof Error ? x.stack : typeof x === 'string' ? x : JSON.stringify(x)).join(' ') + '\n'); } catch {} }
+process.on('uncaughtException', e => { log('uncaught', e); try { dialog.showErrorBox('Relief Forge error', String(e && e.stack || e)); } catch {} });
+process.on('unhandledRejection', e => log('unhandled rejection', e));
+log('start', app.getVersion(), process.platform, process.arch, 'electron', process.versions.electron, process.argv.slice(1).join(' '));
+
+if (!app.requestSingleInstanceLock()) { log('another copy is already running: handing over to it'); app.quit(); }
 
 // ---------- small settings file: window size, last folder per kind of file ----------
 const prefsFile = () => path.join(app.getPath('userData'), 'prefs.json');
@@ -49,12 +57,19 @@ async function cdnFetch(req) {
 function createWindow() {
   const b = prefs.bounds || { width: 1440, height: 900 };
   const win = new BrowserWindow({
-    ...b, minWidth: 1000, minHeight: 640, show: false, backgroundColor: '#141517', title: 'Relief Forge', autoHideMenuBar: true,
+    ...b, minWidth: 1000, minHeight: 640, show: true, backgroundColor: '#141517', title: 'Relief Forge', autoHideMenuBar: true,
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: false, nodeIntegration: false, spellcheck: false },
   });
   if (prefs.maximized) win.maximize();
-  win.once('ready-to-show', () => win.show());
+  const wc = win.webContents;
+  wc.on('did-finish-load', () => log('page loaded'));
+  wc.on('did-fail-load', (e, code, desc, url) => log('page failed to load', code, desc, url));
+  wc.on('preload-error', (e, p, err) => log('preload error', err));
+  wc.on('render-process-gone', (e, d) => { log('page process gone', d);
+    const r = dialog.showMessageBoxSync(win, { type: 'error', title: 'Relief Forge', message: 'The page stopped (' + d.reason + ').', detail: 'Your last session can be restored after a reload (Setup → Restore last session).\nIf this keeps happening at start, try starting it with --no-native.\nLog: ' + logFile, buttons: ['Reload', 'Quit'] });
+    if (r === 0) win.reload(); else app.quit(); });
+  wc.on('console-message', (e, level, msg) => { if (level >= 3) log('page error:', String(msg).slice(0, 500)); });
   const keep = () => { if (!win.isMaximized() && !win.isMinimized()) prefs.bounds = win.getBounds(); prefs.maximized = win.isMaximized(); };
   win.on('resize', keep); win.on('move', keep); win.on('close', () => { keep(); savePrefs(); });
   // links to the web open in the normal browser; the app itself never navigates away
@@ -65,7 +80,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  loadPrefs();
+  log('ready'); loadPrefs();
   const root = path.join(__dirname, 'app');
   protocol.handle('app', req => {
     const p = decodeURIComponent(new URL(req.url).pathname), file = path.normalize(path.join(root, p));
@@ -86,7 +101,8 @@ app.whenReady().then(() => {
     if (r.canceled || !r.filePath) return null;
     prefs.lastDir[kind] = path.dirname(r.filePath); savePrefs(); return r.filePath;
   });
-  ipcMain.on('rf-info', e => { e.returnValue = { version: app.getVersion(), platform: process.platform, modelDir: path.join(app.getPath('userData'), 'models') }; });
+  ipcMain.on('rf-info', e => { e.returnValue = { version: app.getVersion(), platform: process.platform, modelDir: path.join(app.getPath('userData'), 'models'), noNative: process.argv.includes('--no-native') }; });
+  ipcMain.on('rf-log', (e, ...a) => log('page:', ...a));
 
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'File', submenu: [{ role: 'quit' }] },
@@ -98,3 +114,4 @@ app.whenReady().then(() => {
   app.on('second-instance', () => { if (win.isMinimized()) win.restore(); win.focus(); });
 });
 app.on('window-all-closed', () => app.quit());
+app.on('child-process-gone', (e, d) => log('child process gone', d));
