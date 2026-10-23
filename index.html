@@ -156,6 +156,10 @@ details.adv[open]{padding-bottom:12px}
 /* ---------- main ---------- */
 main{display:flex;flex-direction:column;min-width:0;min-height:0}
 .viewbar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--side)}
+/* desktop app: no Windows title bar. The top bar and the logo area drag the window; the window buttons sit at the top right */
+html.desktop .viewbar,html.desktop .brand{-webkit-app-region:drag;user-select:none}
+html.desktop .viewbar button,html.desktop .viewbar select,html.desktop .viewbar input,html.desktop .viewbar label,html.desktop .brand button{-webkit-app-region:no-drag}
+html.desktop .viewbar{padding-right:calc(14px + 138px)}
 .seg{display:flex;justify-content:center;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px;flex-wrap:wrap}
 .tab{all:unset;cursor:pointer;padding:6px 11px;border-radius:6px;color:var(--mute);font-size:12.5px;font-weight:500;white-space:nowrap}
 .tab:hover:not(:disabled){color:var(--ink)}
@@ -266,6 +270,7 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 </style>
 </head>
 <body>
+<script>if (window.rfNative && window.rfNative.frameless) document.documentElement.classList.add('desktop');   // desktop app without a Windows title bar</script>
 <div class="app">
 <aside class="side">
   <div class="brand">

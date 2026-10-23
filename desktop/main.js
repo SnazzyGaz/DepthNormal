@@ -5,6 +5,8 @@ const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, session, Menu
 const path = require('path'), fs = require('fs'), crypto = require('crypto');
 const { pathToFileURL } = require('url');
 
+// --system-frame brings back the normal title bar (macOS keeps its own anyway)
+const FRAMELESS = process.platform !== 'darwin' && !process.argv.includes('--system-frame');
 const SITE = 'https://snazzygaz.github.io/DepthNormal/', REPO = 'https://github.com/SnazzyGaz/DepthNormal';
 // the app is served from app://relief-forge/ (a stable, secure origin: browser storage, the model cache and workers all work)
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
@@ -75,6 +77,8 @@ function createWindow() {
   const b = prefs.bounds || { width: 1440, height: 900 };
   const win = new BrowserWindow({
     ...b, minWidth: 1000, minHeight: 640, show: true, backgroundColor: '#141517', title: 'Relief Forge', autoHideMenuBar: true,
+    // no Windows title bar: the app's own top bar is the title bar, with the window buttons drawn into its top-right corner
+    ...(FRAMELESS ? { titleBarStyle: 'hidden', titleBarOverlay: { color: '#1a1b1e', symbolColor: '#b9b7b2', height: 58 } } : {}),
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: false, nodeIntegration: false, spellcheck: false },
   });
@@ -118,7 +122,7 @@ app.whenReady().then(() => {
     if (r.canceled || !r.filePath) return null;
     prefs.lastDir[kind] = path.dirname(r.filePath); savePrefs(); return r.filePath;
   });
-  ipcMain.on('rf-info', e => { e.returnValue = { version: app.getVersion(), platform: process.platform, modelDir: path.join(app.getPath('userData'), 'models'), noNative: process.argv.includes('--no-native'), dmlOpt: ((process.argv.find(x => x.startsWith('--dml-opt=')) || '').split('=')[1] || 'all') }; });
+  ipcMain.on('rf-info', e => { e.returnValue = { version: app.getVersion(), platform: process.platform, modelDir: path.join(app.getPath('userData'), 'models'), noNative: process.argv.includes('--no-native'), frameless: FRAMELESS, dmlOpt: ((process.argv.find(x => x.startsWith('--dml-opt=')) || '').split('=')[1] || 'all') }; });
   ipcMain.on('rf-log', (e, ...a) => log('page:', ...a));
 
   Menu.setApplicationMenu(Menu.buildFromTemplate([
