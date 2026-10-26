@@ -53,6 +53,7 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 
 **Saving**
 - **Export**: 16-bit PNG, STL (with optional silicone pour box and print-bed splitting), normal map, and `.relief` project files. Save dialogs open in the folder you last used
+- **Lithophane**: a backlit plate that shows the subject like lit marble, with adjustable light, thickness and size, saved as an STL
 - **Mould mode**: invert and mirror for casting
 - **Autosave** with *Restore last session* on the next start, and **Recover GPU** after a graphics-driver reset without restarting the browser
 

@@ -58,6 +58,11 @@ button.mini{padding:3px 8px;font-size:11.5px;border-radius:6px}
 button:disabled{opacity:.4;cursor:not-allowed}
 select,input[type=number],input[type=text]{background:var(--card2);color:var(--ink);border:1px solid var(--line2);border-radius:7px;padding:6px 8px;font:inherit;min-width:0}
 select{cursor:pointer}
+dialog#lithoDlg{background:var(--card);color:var(--ink);border:1px solid var(--line2);border-radius:12px;padding:16px 18px;max-width:min(980px,96vw);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+dialog#lithoDlg::backdrop{background:rgba(0,0,0,.62)}
+.lt-wrap{display:grid;grid-template-columns:290px minmax(0,1fr);gap:18px;align-items:start}
+.lt-wrap canvas{width:100%;max-height:70vh;object-fit:contain;background:#0d0e10;border-radius:8px;border:1px solid var(--line)}
+@media (max-width:760px){.lt-wrap{grid-template-columns:1fr}}
 .kv{display:grid;grid-template-columns:1fr minmax(0,1.15fr);gap:7px 10px;align-items:center}
 .kv>span{color:var(--ink2)}
 .status{font-size:12px;color:var(--mute);min-height:1.3em;word-break:break-word;margin-top:6px}
@@ -484,6 +489,11 @@ html.desktop .viewbar{padding-right:calc(14px + 138px)}
       <div class="status" id="stlStatus"></div>
     </div>
     <div class="card">
+      <h3>Lithophane <span class="new">NEW</span></h3>
+      <p class="lead">A thin plate that shows the relief like lit marble when a light shines through it. For 3D printing in white.</p>
+      <div class="row"><button id="btnLitho" disabled>Lithophane…</button></div>
+    </div>
+    <div class="card">
       <h3>Normal map</h3>
       <p class="lead">A colour map of which way each bit of surface faces, for games and 3D software. Not needed for carving.</p>
       <div class="row"><button id="btnNrmPng" disabled>Save normal PNG…</button></div>
@@ -497,6 +507,37 @@ html.desktop .viewbar{padding-right:calc(14px + 138px)}
 
   </div>
 </aside>
+<dialog id="lithoDlg">
+  <h3 style="margin:0 0 10px">Lithophane</h3>
+  <div class="lt-wrap">
+    <div>
+      <div class="kv">
+        <span>Light direction</span><span class="unit"><input type="range" id="ltAz" min="0" max="359" step="1" value="323" style="width:110px"> <span id="ltAzV" style="min-width:34px;text-align:right">323°</span></span>
+        <span>Light height</span><span class="unit"><input type="range" id="ltEl" min="10" max="85" step="1" value="41" style="width:110px"> <span id="ltElV" style="min-width:34px;text-align:right">41°</span></span>
+        <span title="Needs a mask (Sculpt → Mask) to tell the subject from the background.">Background</span><select id="ltBg"><option value="dark">Dark (thick)</option><option value="glow">Glows (thin)</option><option value="keep">As rendered</option></select>
+        <span>Width</span><span class="unit"><input type="number" id="ltW" value="100" min="20" max="400" step="5"> mm</span>
+        <span>Thinnest</span><span class="unit"><input type="number" id="ltTmin" value="0.8" min="0.3" max="3" step="0.1"> mm</span>
+        <span>Thickest</span><span class="unit"><input type="number" id="ltTmax" value="3" min="1" max="8" step="0.1"> mm</span>
+        <span>Frame</span><span class="unit"><input type="number" id="ltFrame" value="4" min="0" max="20" step="1"> mm</span>
+        <span>Detail</span><select id="ltRes"><option value="0.2" selected>0.2 mm (matches a 0.4 mm nozzle)</option><option value="0.15">0.15 mm</option><option value="0.1">0.1 mm (large file)</option></select>
+        <span title="Rounds off detail finer than the nozzle can print, so thin shadow lines don't become needle-like spikes. Light spreads in the plastic at this scale anyway.">Smoothing</span><span class="unit"><input type="number" id="ltSmooth" value="0.4" min="0" max="2" step="0.1"> mm</span>
+        <span title="Lifts the very darkest shadows a little, so they become rounded bumps instead of sudden full-thickness cliffs.">Shadow softness</span><select id="ltSoft"><option value="0">Off</option><option value="0.04">Light</option><option value="0.08" selected>Medium</option><option value="0.15">Strong</option></select>
+        <span>Preview</span><select id="ltView"><option value="lit">Backlit (flat)</option><option value="3d">3D, drag to spin</option><option value="render">Baked picture</option><option value="thick">Thickness</option></select>
+      </div>
+      <div class="kv" id="lt3Opts" hidden style="margin-top:7px">
+        <span>Light behind</span><span class="unit"><input type="range" id="lt3Back" min="0" max="200" value="100" style="width:110px"> <span id="lt3BackV" style="min-width:38px;text-align:right">100%</span></span>
+        <span title="Ordinary room light on the front: shows the plastic's texture, as it looks with the lamp off.">Room light</span><span class="unit"><input type="range" id="lt3Room" min="0" max="100" value="15" style="width:110px"> <span id="lt3RoomV" style="min-width:38px;text-align:right">15%</span></span>
+        <span>Light colour</span><select id="lt3Col"><option value="warm">Warm bulb</option><option value="neutral">Neutral</option><option value="cool">Daylight</option></select>
+        <span title="How quickly light fades in your plastic: the thickness that halves it. White PLA is usually 0.4–0.6 mm.">Light halves every</span><span class="unit"><input type="range" id="lt3Half" min="15" max="120" value="45" style="width:110px"> <span id="lt3HalfV" style="min-width:38px;text-align:right">0.45 mm</span></span>
+        <span title="Light spreads sideways inside the plastic, softening fine detail.">Light spread</span><span class="unit"><input type="number" id="lt3Spread" value="0.3" min="0" max="2" step="0.1"> mm</span>
+      </div>
+      <div class="help" id="ltInfo" style="margin-top:10px"></div>
+      <div class="help" style="margin-top:8px">Print upright in white PLA, 100% infill, 0.1–0.12 mm layers. View it from the textured side with a light behind.</div>
+      <div class="row" style="margin-top:12px"><button id="ltSave" class="primary grow">Save STL…</button><button id="ltClose">Close</button></div>
+    </div>
+    <div><canvas id="ltCv" width="10" height="10"></canvas><div id="lt3d" hidden style="width:100%;height:min(70vh,640px);border-radius:8px;overflow:hidden;border:1px solid var(--line);cursor:grab" title="Drag to spin, scroll to zoom"></div></div>
+  </div>
+</dialog>
 
 <main>
   <div class="viewbar">
@@ -2960,6 +3001,9 @@ function activeNormal() {   // grid cleanup, then (optionally) edges snapped to 
 // ---------- passes ----------
 async function runPasses() {
   if (!S.depthSess || !S.img || S.busy) return;
+  if (!S.normalSess && !S.upNormal && !S.depthOnlyOk) {   // ask once instead of quietly running depth only
+    S.depthOnlyOk = true; setStatus('runStatus', 'The normal model isn’t loaded, so this would be depth only (much less detail). Load it in Setup, or press Run passes again to go ahead with depth only.', 'err'); return; }
+  S.depthOnlyOk = false;
   S.busy = true; S.cancel = false; updateButtons(); $('btnCancel').hidden = false;
   const pr = $('runProg'); pr.hidden = false; pr.value = 0; const t0 = performance.now();
   const chk = () => { if (S.cancel) throw new Error('cancelled'); };
@@ -4161,7 +4205,7 @@ function outBase() { return null; }   // names are suggested per file; the save 
 // Opens the save dialog first (browsers only allow it straight after a click), then builds the file and writes it there.
 // Chrome / Edge: the real Save dialog, remembering the last folder per kind of file. Other browsers: a normal download.
 // The desktop build can provide window.rfNative { chooseSave(name, kind) → path|null, writeFile(path, blob) } instead.
-const APP_VERSION = '2.0.2';
+const APP_VERSION = '2.0.3';
 const SAVE_TYPES = { png: { description: 'PNG image', accept: { 'image/png': ['.png'] } }, stl: { description: 'STL 3D model', accept: { 'model/stl': ['.stl'] } },
   zip: { description: 'ZIP archive', accept: { 'application/zip': ['.zip'] } }, relief: { description: 'Relief Forge project', accept: { 'application/octet-stream': ['.relief'] } },
   json: { description: 'JSON file', accept: { 'application/json': ['.json'] } } };
@@ -4229,7 +4273,7 @@ function updateButtons() {
   $('btnRun').disabled = !(S.depthSess && S.img) || S.busy;
   $('btnRun').textContent = S.normalSess ? 'Run depth + normal passes' : (S.nrmImg ? 'Run depth pass (uploaded normals)' : 'Run passes');
   $('btnPng16').disabled = $('btnPng8').disabled = !S.depth || S.busy;
-  $('btnStl').disabled = !S.depth || S.busy; updateStlEst();
+  $('btnStl').disabled = !S.depth || S.busy; $('btnLitho').disabled = !S.depth || S.busy; updateStlEst();
   $('btnSaveProj').disabled = !S.depth || !S.img || S.busy;
   $('btnNrmPng').disabled = !activeNormal() || S.busy;
 }
@@ -4299,6 +4343,128 @@ $('sB').addEventListener('change', () => { if (S.view === '3d') show3D(); });
 ['sB', 'sRes', 'sBox', 'sTile', 'bClear', 'bWall', 'bCover', 'bFloor', 'bedW', 'bedH'].forEach(id => $(id).addEventListener('change', updateStlEst));
 ['sW', 'sD', 'sB', 'bedW', 'bedH'].forEach(id => $(id).addEventListener('input', updateStlEst));
 $('btnStl').onclick = exportSTL;
+// ---------- lithophane (test): a backlit plate baked from a lit render of the surface ----------
+const LT_TLO = 0.03;
+// light from a direction like a clock face (0° = from the top, 90° = from the right) at a height above the plate (90° = straight on)
+const ltLightVec = () => { const az = (+$('ltAz').value || 0) * Math.PI / 180, el = (+$('ltEl').value || 41) * Math.PI / 180; return [Math.sin(az) * Math.cos(el), -Math.cos(az) * Math.cos(el), Math.sin(el)]; };
+async function ltBrightness() {   // brightness 0..1 at working size: what the plate should look like with a light behind it
+  const W = S.W, H = S.H, N = W * H, M = currentMask(), b = new Float32Array(N);
+  const n = activeNormal(); if (!n) throw new Error('no normals: run the passes with a normal model');
+  ltShade(n.nx, n.ny, n.nz, b);
+  const bg = $('ltBg').value;
+  if (M && bg !== 'keep') { const v = bg === 'glow' ? 1 : 0.06; for (let i = 0; i < N; i++) { const m = Math.min(1, Math.max(0, M[i])); b[i] = m * b[i] + (1 - m) * v; } }
+  // use the full tonal range (1st–99.5th percentile)
+  const smp = []; for (let i = 0; i < N; i += 37) smp.push(b[i]); smp.sort((p, q) => p - q); const p0 = smp[Math.floor(smp.length * 0.01)], p1 = smp[Math.floor(smp.length * 0.995)] || 1;
+  const lift = +$('ltSoft').value || 0;   // shadow softness: the darkest tones are lifted a little, the rest barely change
+  for (let i = 0; i < N; i++) { const v = Math.min(1, Math.max(0, (b[i] - p0) / (p1 - p0 || 1))); b[i] = lift + (1 - lift) * v; }
+  return b;
+}
+function ltShade(nx, ny, nz, out) {   // neutral grey stone: soft ambient, diffuse, a touch of shine
+  const L = ltLightVec(), l = Math.hypot(...L), lx = L[0] / l, ly = L[1] / l, lz = L[2] / l, hl = Math.hypot(lx, ly, lz + 1), hx = lx / hl, hy = ly / hl, hz = (lz + 1) / hl;
+  for (let i = 0; i < out.length; i++) { const a = nx[i], c = ny[i], z = nz[i], k = Math.hypot(a, c, z) || 1, d = Math.max(0, (a * lx + c * ly + z * lz) / k), s = Math.pow(Math.max(0, (a * hx + c * hy + z * hz) / k), 40);
+    out[i] = Math.min(1, 0.12 + 0.88 * d + 0.18 * s); }
+}
+function ltPlate(b, maxCells) {   // thickness grid in mm (row 0 = top of the picture), including the frame
+  const W = S.W, H = S.H, Wmm = Math.max(20, +$('ltW').value || 100), tmin = Math.max(0.3, +$('ltTmin').value || 0.8), tmax = Math.max(tmin + 0.2, +$('ltTmax').value || 3), fr = Math.max(0, +$('ltFrame').value || 0);
+  let res = +$('ltRes').value || 0.15; let nx = Math.round(Wmm / res); if (maxCells && nx > maxCells) { nx = maxCells; res = Wmm / nx; }
+  const pxmm = Wmm / W, sm = Math.max(0, +$('ltSmooth').value || 0), sg = Math.hypot(res / pxmm / 2, sm / 2.355 / pxmm);   // area-average down to the plate grid, plus the smoothing (as a width at half height)
+  if (sg > 0.3 && b.length === W * H) { const c = S.ltBlur; if (c && c.b === b && Math.abs(c.sg - sg) < 1e-3) b = c.out; else { const o = Core.blur(b, W, H, sg); S.ltBlur = { b, sg, out: o }; b = o; } }
+  const ny = Math.max(2, Math.round(nx * H / W)), F = Math.round(fr / res), gx = nx + 2 * F, gy = ny + 2 * F, T = new Float32Array(gx * gy).fill(tmax + 0.6), lnT = Math.log(LT_TLO);
+  for (let y = 0; y < ny; y++) { const sy = Math.min(H - 1.001, (y + 0.5) * H / ny - 0.5), y0 = Math.max(0, Math.floor(sy)), fy = Math.max(0, sy - y0);
+    for (let x = 0; x < nx; x++) { const sx = Math.min(W - 1.001, (x + 0.5) * W / nx - 0.5), x0 = Math.max(0, Math.floor(sx)), fx = Math.max(0, sx - x0), i = y0 * W + x0;
+      const v = (b[i] * (1 - fx) + b[i + 1] * fx) * (1 - fy) + (b[i + W] * (1 - fx) + b[i + W + 1] * fx) * fy;
+      T[(y + F) * gx + x + F] = tmin + (tmax - tmin) * Math.log(LT_TLO + (1 - LT_TLO) * v) / lnT; } }   // light fades exponentially in plastic: thickness from log brightness
+  return { T, gx, gy, res, tmin, tmax, Wmm: gx * res, Hmm: gy * res };
+}
+function ltSTL(p) {   // watertight binary STL: textured top, flat back, walls, back as a fan from the centre
+  const { T, gx, gy, res } = p, X = i => i * res, Y = j => (gy - 1 - j) * res, nTop = 2 * (gx - 1) * (gy - 1), ring = 2 * (gx - 1) + 2 * (gy - 1), n = nTop + 2 * ring + ring;
+  const buf = new ArrayBuffer(84 + 50 * n), dv = new DataView(buf); new Uint8Array(buf).set(new TextEncoder().encode('Relief Forge lithophane')); dv.setUint32(80, n, true);
+  let o = 84; const cx = X(gx - 1) / 2, cy = Y(0) / 2;
+  const tri = (a, b, c, ox, oy, oz) => {   // flips the winding if the normal doesn't point the expected way
+    let ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2], nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    if (nx * ox + ny * oy + nz * oz < 0) { const t = b; b = c; c = t; nx = -nx; ny = -ny; nz = -nz; } const l = Math.hypot(nx, ny, nz) || 1;
+    dv.setFloat32(o, nx / l, true); dv.setFloat32(o + 4, ny / l, true); dv.setFloat32(o + 8, nz / l, true); o += 12;
+    for (const v of [a, b, c]) { dv.setFloat32(o, v[0], true); dv.setFloat32(o + 4, v[1], true); dv.setFloat32(o + 8, v[2], true); o += 12; } o += 2; };
+  const P = (i, j) => [X(i), Y(j), T[j * gx + i]];
+  for (let j = 0; j < gy - 1; j++) for (let i = 0; i < gx - 1; i++) { const a = P(i, j), b = P(i + 1, j), c = P(i + 1, j + 1), d = P(i, j + 1); tri(a, b, c, 0, 0, 1); tri(a, c, d, 0, 0, 1); }
+  const edge = []; for (let i = 0; i < gx - 1; i++) edge.push([i, 0, i + 1, 0, 0, 1]); for (let j = 0; j < gy - 1; j++) edge.push([gx - 1, j, gx - 1, j + 1, 1, 0]);
+  for (let i = gx - 1; i > 0; i--) edge.push([i, gy - 1, i - 1, gy - 1, 0, -1]); for (let j = gy - 1; j > 0; j--) edge.push([0, j, 0, j - 1, -1, 0]);
+  for (const [i0, j0, i1, j1, ox, oy] of edge) { const t0 = P(i0, j0), t1 = P(i1, j1), b0 = [t0[0], t0[1], 0], b1 = [t1[0], t1[1], 0];
+    tri(b0, b1, t1, ox, oy, 0); tri(b0, t1, t0, ox, oy, 0); tri([cx, cy, 0], b0, b1, 0, 0, -1); }
+  return new Blob([buf], { type: 'model/stl' });
+}
+// ---- lithophane preview: 2D pictures, or a 3D plate you can spin with a light behind it ----
+function ltBlurGrid(a, W, H, s) {   // small separable gaussian on a plate grid
+  if (s < 0.3) return a; const r = Math.ceil(s * 2.5), k = []; for (let i = -r; i <= r; i++) k.push(Math.exp(-i * i / (2 * s * s)));
+  const pass = (src, hz) => { const o = new Float32Array(src.length); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let s1 = 0, w = 0;
+    for (let j = -r; j <= r; j++) { const xx = hz ? x + j : x, yy = hz ? y : y + j; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; s1 += src[yy * W + xx] * k[j + r]; w += k[j + r]; } o[y * W + x] = s1 / w; } return o; };
+  return pass(pass(a, true), false);
+}
+const LT_COL = { warm: [1, 0.78, 0.52], neutral: [1, 0.93, 0.84], cool: [0.93, 0.96, 1] };
+async function lt3dShow(p) {   // build or update the spinnable plate
+  const box = $('lt3d'), L = S.lt3 || (S.lt3 = {});
+  if (!L.ren) { const THREE = await import('three'), { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    const ren = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); ren.setPixelRatio(Math.min(2, devicePixelRatio)); box.appendChild(ren.domElement);
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0d0e10); const cam = new THREE.PerspectiveCamera(35, 1, 1, 5000), ctl = new OrbitControls(cam, ren.domElement); ctl.enableDamping = true;
+    const mat = new THREE.ShaderMaterial({ side: THREE.DoubleSide, uniforms: { uK: { value: 1.5 }, uTmin: { value: 0.8 }, uBack: { value: 1 }, uRoom: { value: 0.15 }, uCol: { value: new THREE.Vector3(1, 0.78, 0.52) }, uL: { value: new THREE.Vector3(-0.5, 0.6, 0.62).normalize() } },
+      vertexShader: `attribute float thb; varying float vT; varying vec3 vN; varying vec3 vP; void main(){ vT = thb; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vP = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+      fragmentShader: `uniform float uK, uTmin, uBack, uRoom; uniform vec3 uCol, uL; varying float vT; varying vec3 vN; varying vec3 vP;
+        void main(){ vec3 V = normalize(cameraPosition - vP); vec3 N = normalize(gl_FrontFacing ? vN : -vN);
+          float cv = max(0.25, abs(V.z));                       // a tilted view crosses more plastic
+          vec3 back = uCol * uBack * exp(-uK * (vT - uTmin) / cv);   // light from behind, faded by thickness
+          vec3 room = vec3(0.92, 0.9, 0.86) * uRoom * (0.3 + 0.7 * max(0.0, dot(N, uL)));   // room light on the surface texture
+          gl_FragColor = vec4(pow(clamp(back + room, 0.0, 1.0), vec3(1.0 / 2.2)), 1.0); }` });
+    Object.assign(L, { THREE, ren, scene, cam, ctl, mat });
+    const fit = () => { const w = box.clientWidth || 400, h = box.clientHeight || 400; ren.setSize(w, h, false); ren.domElement.style.width = '100%'; ren.domElement.style.height = '100%'; cam.aspect = w / h; cam.updateProjectionMatrix(); };
+    L.fit = fit; new ResizeObserver(fit).observe(box); fit();
+    const loop = () => { if (!$('lithoDlg').open || $('ltView').value !== '3d') { L.raf = 0; return; } ctl.update(); ren.render(scene, cam); L.raf = requestAnimationFrame(loop); }; L.loop = loop;
+  }
+  const { THREE } = L; if (L.meshes) for (const m of L.meshes) { L.scene.remove(m); m.geometry.dispose(); }
+  const { T, gx, gy, res } = p, Wm = (gx - 1) * res, Hm = (gy - 1) * res, thb = ltBlurGrid(T, gx, gy, (+$('lt3Spread').value || 0.3) / res / 2);
+  const front = new THREE.PlaneGeometry(Wm, Hm, gx - 1, gy - 1), pos = front.attributes.position; for (let i = 0; i < pos.count; i++) pos.setZ(i, T[i]); front.computeVertexNormals();
+  front.setAttribute('thb', new THREE.BufferAttribute(thb, 1));
+  const backG = new THREE.PlaneGeometry(Wm, Hm, gx - 1, gy - 1); backG.setAttribute('thb', new THREE.BufferAttribute(thb, 1));   // flat back at z = 0
+  L.meshes = [new THREE.Mesh(front, L.mat), new THREE.Mesh(backG, L.mat)]; for (const m of L.meshes) L.scene.add(m);
+  L.mat.uniforms.uTmin.value = p.tmin;
+  const key = Wm.toFixed(1) + 'x' + Hm.toFixed(1); if (L.framedFor !== key) { const d = Math.max(Wm, Hm) * 1.9; L.cam.position.set(0, 0, d); L.cam.near = d / 50; L.cam.far = d * 10; L.cam.updateProjectionMatrix(); L.ctl.target.set(0, 0, 1); L.framedFor = key; }
+  lt3dUniforms(); L.fit(); if (!L.raf) L.loop();
+}
+function lt3dUniforms() { const L = S.lt3; if (!L || !L.mat) return; const u = L.mat.uniforms, half = (+$('lt3Half').value || 45) / 100;
+  u.uK.value = Math.LN2 / half; u.uBack.value = (+$('lt3Back').value || 0) / 100; u.uRoom.value = (+$('lt3Room').value || 0) / 100; const c = LT_COL[$('lt3Col').value] || LT_COL.warm; u.uCol.value.set(c[0], c[1], c[2]);
+  $('lt3BackV').textContent = $('lt3Back').value + '%'; $('lt3RoomV').textContent = $('lt3Room').value + '%'; $('lt3HalfV').textContent = half.toFixed(2) + ' mm'; }
+async function ltPreview() {
+  if (!S.depth) return; const c = $('ltCv'), info = $('ltInfo'), v = $('ltView').value;
+  $('lt3Opts').hidden = v !== '3d'; $('lt3d').hidden = v !== '3d'; c.hidden = v === '3d';
+  try { let p;
+    info.textContent = 'Baking…'; await tick(); const b = S.ltB || await ltBrightness(); S.ltB = b; p = ltPlate(b, 520);
+    if (v === '3d') await lt3dShow(p);
+    else { const k = Math.LN2 / ((+$('lt3Half').value || 45) / 100); c.width = p.gx; c.height = p.gy; const im = new ImageData(p.gx, p.gy), span = Math.max(1e-3, p.tmax - p.tmin);
+      for (let i = 0; i < p.T.length; i++) { const t = p.T[i]; let r, g, bl;
+        if (v === 'thick') { const q = 255 * (1 - (t - p.tmin) / (span + 0.6)); r = g = bl = q; }
+        else if (v === 'render') { const q = (t - p.tmin) / span; const s = q > 1 ? 0.1 : Math.exp(Math.log(LT_TLO) * q); r = g = bl = 255 * s; }
+        else { const s = Math.pow(Math.min(1, Math.exp(-k * (t - p.tmin))), 1 / 2.2); r = 255 * s; g = 205 * s; bl = 140 * s; }
+        im.data[i * 4] = r; im.data[i * 4 + 1] = g; im.data[i * 4 + 2] = bl; im.data[i * 4 + 3] = 255; }
+      c.getContext('2d').putImageData(im, 0, 0); }
+    { const full = ltPlate(new Float32Array(16), 0), tris = 2 * full.gx * full.gy + 6 * (full.gx + full.gy);
+      info.textContent = `Plate ${full.Wmm.toFixed(0)} × ${full.Hmm.toFixed(0)} mm · ${p.tmin}–${p.tmax} mm thick · STL about ${(tris * 50 / 1e6).toFixed(0)} MB`; }
+  } catch (e) { info.textContent = 'Could not show it: ' + (e.message || e); }
+}
+async function ltSave() {
+  const btn = $('ltSave'); btn.disabled = true;
+  try { const nm = await saveAs(`${S.imgName}_lithophane_${Math.round(+$('ltW').value || 100)}mm.stl`, 'stl', async () => { $('ltInfo').textContent = 'Building the plate…'; await tick();
+      const b = S.ltB || await ltBrightness(); return ltSTL(ltPlate(b, 0)); });
+    $('ltInfo').textContent = nm == null ? 'Not saved.' : 'Saved ' + nm; }
+  catch (e) { console.error(e); $('ltInfo').textContent = 'Save failed: ' + (e.message || e); }
+  btn.disabled = false;
+}
+$('btnLitho').onclick = () => { $('lithoDlg').showModal(); ltPreview(); };
+for (const id of ['lt3Back', 'lt3Room', 'lt3Col', 'lt3Half']) $(id).addEventListener('input', () => { lt3dUniforms(); if ($('ltView').value !== '3d' && id === 'lt3Half') { clearTimeout(S.ltT); S.ltT = setTimeout(ltPreview, 120); } });
+$('lt3Spread').addEventListener('change', ltPreview);
+$('ltClose').onclick = () => $('lithoDlg').close();
+$('ltSave').onclick = ltSave;
+for (const id of ['ltAz', 'ltEl', 'ltBg', 'ltSoft', 'ltSmooth', 'ltW', 'ltTmin', 'ltTmax', 'ltFrame', 'ltRes', 'ltView']) $(id).addEventListener(id === 'ltAz' || id === 'ltEl' ? 'input' : 'change', () => {
+  if (id === 'ltAz' || id === 'ltEl' || id === 'ltBg' || id === 'ltSoft') S.ltB = null; $('ltAzV').textContent = $('ltAz').value + '°'; $('ltElV').textContent = $('ltEl').value + '°'; clearTimeout(S.ltT); S.ltT = setTimeout(ltPreview, 150); });
+
 $('btnSaveProj').onclick = saveProject;
 // Open: Chrome / Edge get a dialog that starts in the folder of the last project; others the normal file picker
 async function openProjectDialog() {
