@@ -296,7 +296,7 @@ html.desktop .viewbar{padding-right:calc(14px + 138px)}
     <div class="card">
       <h3>Project</h3>
       <p class="lead">Reopen a saved <b>.relief</b> project to keep sculpting without re-running the models.</p>
-      <div class="row"><label class="btn grow" for="fileProject" style="text-align:center">Open project…</label><input type="file" id="fileProject" accept=".relief,.zip"></div>
+      <div class="row"><label class="btn grow" for="fileProject" id="lblOpenProj" style="text-align:center">Open project…</label><input type="file" id="fileProject" accept=".relief,.zip"></div>
       <div id="restoreBox" class="restore" hidden><div><b>Pick up where you left off?</b><br><span id="restoreInfo" class="help"></span></div>
         <div class="row" style="margin:6px 0 0"><button id="btnRestore" class="primary mini grow">Restore last session</button><button id="btnRestoreNo" class="mini ghost">Dismiss</button></div></div>
       <div class="status" id="projStatus"></div>
@@ -351,8 +351,10 @@ html.desktop .viewbar{padding-right:calc(14px + 138px)}
         <select id="nTiles"><option value="0">Off (whole image)</option><option value="2">2 across</option><option value="3" selected>3 across</option><option value="4">4 across</option></select>
       </div>
       <label class="chk"><input type="checkbox" id="tta" checked> Flip averaging <span class="help">(2× time, cleaner)</span></label>
+      <label class="chk" title="Runs each normal tile a second time with the picture shifted by half a model patch, then averages: the model's patch grid lands in different places and cancels out. Tiles also blend over their full overlap. About 2× normal time. For more fine detail, also set Normal tiles to 4 across (about 2× again)."><input type="checkbox" id="maxQ"> Max quality normals <span class="help">(shift averaging, ~2× normal time · pair with 4 across for most detail)</span></label>
       <label class="chk" title="Compares the normals with the depth map and flips an axis if it points the wrong way."><input type="checkbox" id="autoNrm" checked> Auto-check normal direction</label>
       <label class="chk" title="Removes the faint waffle-grid pattern the normals model can leave on flat areas. Real detail is kept. Does nothing if there’s no grid."><input type="checkbox" id="gridNrm" checked> Remove patch grid from normals <span class="help" id="gridInfo"></span></label>
+      <label class="chk" title="The normals model sees the picture at lower detail than the picture has. This adds the picture's finest strokes (hair strands, engraving, texture) back into the normals, but only where the picture's shading follows the normals; flat-coloured areas get nothing. Best on white-stone or clay renders; on photos with painted patterns it can turn paint into relief."><input type="checkbox" id="edgeNrm"> Add fine detail from the picture <select id="edgeAmt" class="mini" style="margin-left:6px"><option value="0.5">subtle</option><option value="1" selected>normal</option><option value="2">strong</option></select> <span class="help" id="edgeInfo"></span></label>
       <div class="help" style="margin-top:8px">Tiles: the models look at the image in overlapping pieces, so small parts come out crisper. Slower, but worth it for detailed images.</div>
     </div>
     <div class="card">
@@ -1559,6 +1561,16 @@ const Core = (() => {
       for (let p = 3; p < rs.length && p < acc.length; p++) acc[p][i] += wt * rs[p][o];
     }
   }
+  // Detail transfer: keep the map as it is and ADD the picture's fine detail, scaled per area by how strongly the map follows the
+  // picture there (the guided filter's local slope a). Flat-colour areas (a≈0) get nothing; shaded relief gets its fine
+  // strokes back. rFit: window for the fit; rHi: size of the detail band taken from the picture; k: strength.
+  function detailTransfer(I, p, w, h, rFit = 6, rHi = 2, k = 1, eps = 2e-4) {
+    const N = w * h, II = new Float32Array(N), Ip = new Float32Array(N); for (let i = 0; i < N; i++) { II[i] = I[i] * I[i]; Ip[i] = I[i] * p[i]; }
+    const mI = boxMean(I, w, h, rFit), mp = boxMean(p, w, h, rFit), mII = boxMean(II, w, h, rFit), mIp = boxMean(Ip, w, h, rFit), A = new Float32Array(N);
+    for (let i = 0; i < N; i++) { const v = mII[i] - mI[i] * mI[i], c = mIp[i] - mI[i] * mp[i]; A[i] = c / (v + eps); }
+    const mA = boxMean(A, w, h, rFit), lo = boxMean(boxMean(I, w, h, rHi), w, h, rHi), q = new Float32Array(N);
+    for (let i = 0; i < N; i++) q[i] = p[i] + k * mA[i] * (I[i] - lo[i]); return q;
+  }
   function renormNormals(n) {
     const a = n[0], b = n[1], c = n[2];
     for (let i = 0; i < a.length; i++) { const l = Math.hypot(a[i], b[i], c[i]) || 1; a[i] /= l; b[i] /= l; c[i] /= l; }
@@ -2170,7 +2182,7 @@ const Core = (() => {
     return { nx: onx, ny: ony, nz: onz, T, strength: d.strength };
   }
 
-  return { rimLock, gridClean, gridDetect, normalsAnchored, screenedDCT, screenedCG, makeSim, millSim, stepoverFor, draftLimit, coneEnvelope, discOp, toolClose, composeShape, composeFinish, composeTail, curveLUT, guidedSmooth, fieldFloor, floorFill, edt, buildSTL, stlTriangles, zipBuild, zipList, inflate, decodePNG, resample, integrateNormals, normalsVsDepth, crc32: crc, blur, grad, poisson, poissonMasked, maskedBlur, otsu, buildMask, labels, distInside, makeDCT, normalize, percentile, compose, tileGrid, featherW, samplePlanes, sampleBack, accumulateTile, accumulateNormalTile, renormNormals, hillshade, toHalf, fromHalf, encodePNG };
+  return { detailTransfer, rimLock, gridClean, gridDetect, normalsAnchored, screenedDCT, screenedCG, makeSim, millSim, stepoverFor, draftLimit, coneEnvelope, discOp, toolClose, composeShape, composeFinish, composeTail, curveLUT, guidedSmooth, fieldFloor, floorFill, edt, buildSTL, stlTriangles, zipBuild, zipList, inflate, decodePNG, resample, integrateNormals, normalsVsDepth, crc32: crc, blur, grad, poisson, poissonMasked, maskedBlur, otsu, buildMask, labels, distInside, makeDCT, normalize, percentile, compose, tileGrid, featherW, samplePlanes, sampleBack, accumulateTile, accumulateNormalTile, renormNormals, hillshade, toHalf, fromHalf, encodePNG };
 })();
 if (typeof module !== 'undefined') module.exports = Core;
 
@@ -2926,7 +2938,7 @@ function rawNormal() {
 }
 // the active normals, with the model's patch lattice removed when "Remove patch grid" is on (cached; the key includes a
 // fingerprint so in-place axis flips invalidate it)
-function activeNormal() {
+function activeNormal0() {
   const n = rawNormal(); if (!n) return n;
   const el = $('gridNrm'); if (!el || !el.checked || n.nx.length !== S.W * S.H) { if ($('gridInfo')) $('gridInfo').textContent = ''; return n; }
   let fp = 0; const st = Math.max(1, Math.floor(n.nx.length / 97)); for (let i = 0; i < n.nx.length; i += st) fp += n.nx[i] * 1.7 + n.ny[i] * 2.3;
@@ -2935,6 +2947,14 @@ function activeNormal() {
   S.gcCache = { src: n, fp, out: r ? { nx: r.nx, ny: r.ny, nz: r.nz } : null };
   $('gridInfo').textContent = r ? `(removed, ${r.T.toFixed(1)} px cells)` : '(none found)';
   return S.gcCache.out || n;
+}
+function activeNormal() {   // grid cleanup, then (optionally) edges snapped to the picture
+  const n = activeNormal0(); if (!n || !$('edgeNrm').checked || !S.lum || n.nx.length !== S.lum.length) return n;
+  const k = +$('edgeAmt').value || 1, c = S.eaCache; if (c && c.src === n && c.lum === S.lum && c.k === k) return c.out;
+  const t0 = performance.now(), o = [n.nx, n.ny].map(c => Core.detailTransfer(S.lum, c, S.W, S.H, 6, 2, k));
+  const z = new Float32Array(n.nz.length); for (let i = 0; i < z.length; i++) z[i] = n.nz[i] / Math.max(1e-3, Math.hypot(n.nx[i], n.ny[i], n.nz[i])); o.push(z); Core.renormNormals(o);   // detail goes into the slopes only
+  S.eaCache = { src: n, lum: S.lum, k, out: { nx: o[0], ny: o[1], nz: o[2] } }; $('edgeInfo').textContent = `(${((performance.now() - t0) / 1000).toFixed(1)} s)`;
+  return S.eaCache.out;
 }
 
 // ---------- passes ----------
@@ -2946,7 +2966,7 @@ async function runPasses() {
   try {
     setupWorking();
     const W = S.W, H = S.H, N = W * H, gRes = +$('globRes').value;
-    const doNormal = !!S.normalSess, nT = +$('nTiles').value, dT = +$('tileN').value;
+    const doNormal = !!S.normalSess, MQ = $('maxQ').checked, nT = +$('nTiles').value, dT = +$('tileN').value, FE = MQ ? 0.33 : 0.3;   // Max: tiles blended over the whole overlap
     const nTiles = doNormal && nT ? Core.tileGrid(W, H, nT, 0.33) : [], dTiles = dT ? Core.tileGrid(W, H, dT, 0.33) : [];
     const steps = 1 + (doNormal ? (nTiles.length || 1) : 0) + dTiles.length; let done = 0;
     // with depth tiles on, the whole-image pass only lines the tiles up (broad shape), so a light 518 pass is enough
@@ -2965,6 +2985,11 @@ async function runPasses() {
         setStatus('runStatus', `Normal pass ${RW}×${RH}…`); await tick(); chk();
         const t = { x0: 0, y0: 0, TW: W, TH: H }, o = await normalTTA(t, RW, RH);
         const smp = Core.samplePlanes(o, RW, RH, t, W, H); S.mogeMask = smp.rs[3] || null; S.mogeNormal = Core.renormNormals(smp.rs.slice(0, 3));
+        if ($('maxQ').checked) {   // second run, shifted by half a model patch; average where both cover
+          chk(); setStatus('runStatus', `Normal pass ${RW}×${RH} (shifted)…`); await tick();
+          const sx = Math.max(1, Math.round(7 * W / RW)), sy = Math.max(1, Math.round(7 * H / RH)), t2 = { x0: sx, y0: sy, TW: W, TH: H }, o2 = await normalTTA(t2, RW, RH), s2 = Core.samplePlanes(o2, RW, RH, t2, W, H);
+          for (let p = 0; p < 3; p++) { const a = S.mogeNormal[p], b = s2.rs[p]; for (let y = s2.y1; y < s2.y1 + s2.rh; y++) for (let x = s2.x1; x < s2.x1 + s2.rw; x++) a[y * W + x] += b[(y - s2.y1) * s2.rw + (x - s2.x1)]; }
+          Core.renormNormals(S.mogeNormal); }
         step();
       } else {
         const acc = [new Float32Array(N), new Float32Array(N), new Float32Array(N), new Float32Array(N)], ws = new Float32Array(N); let hasM = false;
@@ -2973,7 +2998,11 @@ async function runPasses() {
         for (let i = 0; i < nTiles.length; i++) {
           chk(); setStatus('runStatus', `Normal tile ${i + 1}/${nTiles.length} @${R}…`); await tick();
           const o = await normalTTA(nTiles[i], R, R); hasM = hasM || !!o[3];
-          Core.accumulateNormalTile(acc, ws, W, H, nTiles[i], Core.samplePlanes(o, R, R, nTiles[i], W, H), 0.3);
+          Core.accumulateNormalTile(acc, ws, W, H, nTiles[i], Core.samplePlanes(o, R, R, nTiles[i], W, H), FE);
+          if ($('maxQ').checked) {   // the same tile shifted by half a model patch (7 px at model size): the patch grid lands elsewhere and averages out
+            chk(); setStatus('runStatus', `Normal tile ${i + 1}/${nTiles.length} @${R} (shifted)…`); await tick();
+            const sh = Math.max(1, Math.round(7 * nTiles[i].T / R)), t2 = { ...nTiles[i], x0: nTiles[i].x0 + sh, y0: nTiles[i].y0 + sh };
+            const o2 = await normalTTA(t2, R, R); Core.accumulateNormalTile(acc, ws, W, H, t2, Core.samplePlanes(o2, R, R, t2, W, H), FE); }
           // each tile's depth has its own scale/offset: fit it to the global depth (subject only) and feather-blend, as depth tiles do
           if (false && o.depth) { hasD = true; const sp = Core.samplePlanes([o.depth], R, R, nTiles[i], W, H);
             Core.accumulateTile(dAcc, dWs, S.depth, W, H, nTiles[i], { r: sp.rs[0], x1: sp.x1, y1: sp.y1, rw: sp.rw, rh: sp.rh }, 0.3, S.preMask); }
@@ -3006,7 +3035,7 @@ async function runPasses() {
     S.busy = false; await compose(false);
     if (S.view === 'input') setView('relief');
     if (S.step === 'generate') goStep('sculpt');
-  } catch (e) { console.error(e);
+  } catch (e) { if (e.message !== 'cancelled') console.error(e);
     if (e.message !== 'cancelled' && (S.gpuLost || isGpuErr(e))) {
       if (S.recoveredAt && !S.forceCpu) S.gpuFailedAfterRecover = true;
       showRecover(true); setStatus('runStatus', 'The GPU failed during the passes (' + String(e.message || e).slice(0, 160) + '). Press Recover GPU (models reload from the cache, your image and settings stay), then run the passes again. No need to restart the browser.', 'err');
@@ -4022,14 +4051,15 @@ function q16(a, lo, hi) { const r = hi - lo || 1, u = new Uint16Array(a.length);
 function dq16(u8, lo, hi) { const u = new Uint16Array(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength)), o = new Float32Array(u.length), r = hi - lo; for (let i = 0; i < u.length; i++) o[i] = lo + u[i] / 65535 * r; return o; }
 const extOf = f => (f && f.name && /\.[a-z0-9]+$/i.test(f.name) ? f.name.match(/\.([a-z0-9]+)$/i)[1] : 'png').toLowerCase();
 function settingsSnapshot() {
-  const sel = ['baseSrc', 'maskSrc', 'workRes', 'globRes', 'tileN', 'nTok', 'nTiles', 'sRes'];
+  const sel = ['baseSrc', 'maskSrc', 'workRes', 'globRes', 'tileN', 'nTok', 'nTiles', 'sRes', 'edgeAmt'];
   const num = ['sW', 'sD', 'sB', 'bClear', 'bWall', 'bCover', 'bFloor', 'bedW', 'bedH', 'w3d', 'd3d'];
-  const chk = ['invert', 'mirrorMould', 'fullRange', 'autoNrm', 'gridNrm', 'tta', 'sBox', 'sTile', 'halfPrev', 'liveDrag'];
+  const chk = ['invert', 'mirrorMould', 'fullRange', 'autoNrm', 'gridNrm', 'edgeNrm', 'maxQ', 'tta', 'sBox', 'sTile', 'halfPrev', 'liveDrag'];
   const o = { P: { ...P }, ui: {}, maskUserSet: !!S.maskUserSet, upFlipX: !!S.upFlipX, pickColor: S.pickColor || null, layers: layersOut(), lv: 2, nrmConv: S.nrmConv, nrmSrc: S.nrmSrc, curve: S.curve };
   for (const k of [...sel, ...num]) o.ui[k] = $(k).value; for (const k of chk) o.ui[k] = $(k).checked;
   return o;
 }
 function applySettings(o) {
+  const nk = () => [$('gridNrm').checked, $('edgeNrm').checked, $('edgeAmt').value].join(), n0 = nk();
   for (const k in o.ui || {}) { const el = $(k); if (!el) continue; if (el.type === 'checkbox') el.checked = !!o.ui[k]; else el.value = o.ui[k]; }
   // a setting missing from a saved project didn't exist when it was saved: give it its neutral value, not the last project's
   for (const r of PROWS) if (o.P) setP(r[0], o.P[r[0]] != null ? o.P[r[0]] : r[5]);
@@ -4038,6 +4068,7 @@ function applySettings(o) {
   if (o.layers) setLayers(o.layers, o.lv); else setLayers([1, 2, 3, 4].map(k => u['L' + k + 'src'] ? { src: u['L' + k + 'src'], mode: u['L' + k + 'mode'], op: +u['L' + k + 'op'] } : null));
   updateMaskUI(); updateBadges();
   S.maskUserSet = !!o.maskUserSet; S.upFlipX = !!o.upFlipX; updateStlEst();
+  if (nk() !== n0) { S.nbCache = null; S.stackCache = null; S.maskCache = null; S.naCache = null; S.naCacheH = null; S.gcCache = null; }   // normal clean-up / fine detail changed (undo, project, preset)
 }
 const PACKC = new WeakMap();
 async function packProject() {
@@ -4130,17 +4161,25 @@ function outBase() { return null; }   // names are suggested per file; the save 
 // Opens the save dialog first (browsers only allow it straight after a click), then builds the file and writes it there.
 // Chrome / Edge: the real Save dialog, remembering the last folder per kind of file. Other browsers: a normal download.
 // The desktop build can provide window.rfNative { chooseSave(name, kind) → path|null, writeFile(path, blob) } instead.
-const APP_VERSION = '2.0.1';
+const APP_VERSION = '2.0.2';
 const SAVE_TYPES = { png: { description: 'PNG image', accept: { 'image/png': ['.png'] } }, stl: { description: 'STL 3D model', accept: { 'model/stl': ['.stl'] } },
   zip: { description: 'ZIP archive', accept: { 'application/zip': ['.zip'] } }, relief: { description: 'Relief Forge project', accept: { 'application/octet-stream': ['.relief'] } },
   json: { description: 'JSON file', accept: { 'application/json': ['.json'] } } };
+// the last file saved / opened of each kind (kept between visits), so the dialog opens in that folder
+const LASTH = {}; cacheGet('lastHandles').then(v => { if (v) Object.assign(LASTH, v); });
+function rememberHandle(kind, h) { if (!h) return; LASTH[kind] = h; LASTH.any = h; cachePut('lastHandles', { ...LASTH }); }
+const startAt = kind => LASTH[kind] || LASTH.any || undefined;
 async function saveAs(name, kind, make) {
   const N = window.rfNative;
   if (N && N.chooseSave) { const path = await N.chooseSave(name, kind); if (!path) return null; const b = await make(); await N.writeFile(path, new Uint8Array(await b.arrayBuffer())); return String(path).split(/[\\/]/).pop(); }
   if (window.showSaveFilePicker) {
     let h = null;
-    try { h = await window.showSaveFilePicker({ suggestedName: name, id: 'rf-' + kind, types: [SAVE_TYPES[kind]] }); }
-    catch (e) { if (e && e.name === 'AbortError') return null; h = null; }   // cancelled; anything else falls back to a download
+    const o = { suggestedName: name, types: [SAVE_TYPES[kind]] }, st = startAt(kind);
+    try { h = await window.showSaveFilePicker(st ? { ...o, startIn: st } : { ...o, id: 'rf-' + kind }); }
+    catch (e) { if (e && e.name === 'AbortError') return null;
+      try { h = await window.showSaveFilePicker({ ...o, id: 'rf-' + kind }); }   // e.g. the remembered folder is gone
+      catch (e2) { if (e2 && e2.name === 'AbortError') return null; h = null; } }   // anything else falls back to a download
+    if (h) rememberHandle(kind, h);
     if (h) { const blob = await make(), w = await h.createWritable(); await w.write(blob); await w.close(); return h.name; }
   }
   const blob = await make(); download(blob, name); return name;
@@ -4194,6 +4233,8 @@ function updateButtons() {
   $('btnSaveProj').disabled = !S.depth || !S.img || S.busy;
   $('btnNrmPng').disabled = !activeNormal() || S.busy;
 }
+$('edgeAmt').addEventListener('change', () => { if ($('edgeNrm').checked) $('edgeNrm').dispatchEvent(new Event('change')); });
+$('edgeNrm').addEventListener('change', () => { S.nbCache = null; S.stackCache = null; S.naCache = null; S.naCacheH = null; if (S.view === 'normal') render(); scheduleCompose(); });
 $('gridNrm').addEventListener('change', () => { S.nbCache = null; S.stackCache = null; S.maskCache = null; S.naCache = null; S.naCacheH = null; S.gcCache = null; if (S.view === 'normal') render(); scheduleCompose(); });
 function normalChanged() { S.nbCache = null; prepUploadNormal(); refreshThumbs(); updateButtons(); if (S.depth) enableTabs(); if (S.view === 'normal') render(); scheduleCompose(); }
 
@@ -4259,7 +4300,16 @@ $('sB').addEventListener('change', () => { if (S.view === '3d') show3D(); });
 ['sW', 'sD', 'sB', 'bedW', 'bedH'].forEach(id => $(id).addEventListener('input', updateStlEst));
 $('btnStl').onclick = exportSTL;
 $('btnSaveProj').onclick = saveProject;
-$('btnOpenProj').onclick = () => $('fileProject').click();
+// Open: Chrome / Edge get a dialog that starts in the folder of the last project; others the normal file picker
+async function openProjectDialog() {
+  if (!window.showOpenFilePicker || window.rfNative) return $('fileProject').click();
+  const o = { types: [{ description: 'Relief Forge project', accept: { 'application/octet-stream': ['.relief', '.zip'] } }] }, st = LASTH.relief || LASTH.any;
+  let hs; try { hs = await window.showOpenFilePicker(st ? { ...o, startIn: st } : { ...o, id: 'rf-relief' }); }
+  catch (e) { if (e && e.name === 'AbortError') return; try { hs = await window.showOpenFilePicker({ ...o, id: 'rf-relief' }); } catch { return $('fileProject').click(); } }
+  const h = hs && hs[0]; if (!h) return; rememberHandle('relief', h); openProject(await h.getFile());
+}
+$('btnOpenProj').onclick = () => openProjectDialog();
+$('lblOpenProj').addEventListener('click', e => { if (window.showOpenFilePicker && !window.rfNative) { e.preventDefault(); openProjectDialog(); } });
 $('appVer').textContent = 'v' + APP_VERSION;
 // desktop app: a new version downloads in the background; offer to restart into it (otherwise it installs when the app closes)
 if (window.rfNative && window.rfNative.onUpdate) {
@@ -4281,7 +4331,7 @@ if (window.rfNative && window.rfNative.ort) {
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return; const k = e.key.toLowerCase();
   if (k === 's') { e.preventDefault(); if (!$('btnSaveProj').disabled) saveProject(); }
-  else if (k === 'o') { e.preventDefault(); $('fileProject').click(); } });
+  else if (k === 'o') { e.preventDefault(); openProjectDialog(); } });
 // a .relief project (or an image) dropped anywhere on the window opens it; the image drop box handles its own drops
 document.addEventListener('dragover', e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
 document.addEventListener('drop', e => { if (e.defaultPrevented) return; const f = e.dataTransfer && e.dataTransfer.files[0]; if (!f) return; e.preventDefault();

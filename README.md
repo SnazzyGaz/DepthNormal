@@ -30,7 +30,9 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 **Making the relief**
 - **Image → height map** with Depth Anything 3 (depth) and MoGe-2 (normals), fused into one relief
 - **Normals anchored to depth** base: crisp detail from the normals, front-to-back order from the depth, so faces don't tilt or bowl. *Depth anchoring size* sets the crossover
-- **Tiled passes** for extra detail on large images, and automatic removal of the faint grid the normal model leaves on flat areas
+- **Tiled passes** for extra detail on large images (3 or 4 across), and automatic removal of the faint grid the normal model leaves on flat areas
+- **Max quality normals**: each tile is run twice, slightly shifted, and averaged for cleaner flat areas. Pair with 4-across tiles for the most detail
+- **Fine detail from the picture**: adds hair, fur and engraving texture from the image itself. Works live and can be changed any time; it isn't baked in
 - **Background masking**: automatic, flat-colour pick, transparency, or paint it yourself
 
 **Presets**
@@ -50,7 +52,7 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 - **Process sim**, a side check next to the result tabs: shows what a CNC bit (ball, tapered, V, flat, bull-nose, with stepover ridges), a filament or resin printer, or a laser can really make. As a colour-coded picture or in 3D at real size, with a plain-language result and a saved library of your tools
 
 **Saving**
-- **Export**: 16-bit PNG, STL (with optional silicone pour box and print-bed splitting), normal map, and `.relief` project files
+- **Export**: 16-bit PNG, STL (with optional silicone pour box and print-bed splitting), normal map, and `.relief` project files. Save dialogs open in the folder you last used
 - **Mould mode**: invert and mirror for casting
 - **Autosave** with *Restore last session* on the next start, and **Recover GPU** after a graphics-driver reset without restarting the browser
 
@@ -59,7 +61,7 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 | | |
 |---|---|
 | **Use in the browser** | [Open Relief Forge](https://snazzygaz.github.io/DepthNormal/) |
-| **Desktop app** | Windows (portable .exe) and Linux (AppImage, .deb) from [Releases](../../releases/latest). Faster AI on Windows (DirectML), native save dialogs, works offline after the first run. See [desktop/](desktop/) |
+| **Desktop app** | Windows (installer .exe, recommended; also .zip and portable) and Linux (AppImage, .deb) from [Releases](../../releases/latest). Updates itself, native save dialogs, works offline after the first run. See [desktop/](desktop/) |
 | **Download** | Save [index.html](index.html) and open it in Chrome |
 
 Open it in **Chrome** or **Edge**. No installation and no account are needed.
