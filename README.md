@@ -48,7 +48,7 @@ Two AI models look at your picture. One estimates **distance** (depth), the othe
 - **Undo / redo** for settings (Ctrl+Z / Ctrl+Y)
 
 **Checking it**
-- **Live 3D showroom** with materials (metals, wood, stone, resin…), lighting, and a "skin" view of your original picture on the model
+- **Live 3D showroom** with 50+ materials (metals, wood, stone, glazed ceramic, resin, 3D-print plastics), finishes like enamel fill, laser burn and proof coin, a ruler or bank card for scale, lighting, and a "skin" view of your original picture on the model
 - **Process sim**, a side check next to the result tabs: shows what a CNC bit (ball, tapered, V, flat, bull-nose, with stepover ridges), a filament or resin printer, or a laser can really make. As a colour-coded picture or in 3D at real size, with a plain-language result and a saved library of your tools
 
 **Saving**
