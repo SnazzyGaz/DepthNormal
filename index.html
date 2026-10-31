@@ -1823,7 +1823,7 @@ const Core = (() => {
     }
     const zlib = await import('node:zlib'); return new Uint8Array(raw ? zlib.inflateRawSync(data) : zlib.inflateSync(data));
   }
-  async function decodePNG(u8) {
+  async function decodePNG(u8, rgb) {
     const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
     if (dv.getUint32(0) !== 0x89504e47) return null;
     let p = 8, w = 0, h = 0, bd = 0, ct = 0, il = 0; const idat = [];
@@ -1854,6 +1854,7 @@ const Core = (() => {
       if (ch <= 2) out[i] = rd(b0) / mx;
       else out[i] = (0.2126 * rd(b0) + 0.7152 * rd(b0 + sb) + 0.0722 * rd(b0 + 2 * sb)) / mx;
     }
+    if (rgb && ch >= 3) { const c3 = [0, 1, 2].map(k => { const a = new Float32Array(w * h); for (let i = 0; i < w * h; i++) a[i] = rd(i * bpp + k * sb) / mx; return a; }); return { w, h, bits: bd, data: out, rgb: c3 }; }
     return { w, h, bits: bd, data: out };
   }
   function resample(src, sw, sh, dw, dh) {   // bilinear
@@ -2235,15 +2236,15 @@ const $ = id => document.getElementById(id);
 const ORT_DIST = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
 const HF = 'https://huggingface.co';
 const DEPTH_MODELS = {
-  fp16: { repo: 'Jens-Duttke/Depth-Anything-3-MONO-ONNX', file: 'da-v3-mono-large_fp16_opset21_optimized.onnx' },
-  q4:   { repo: 'Jens-Duttke/Depth-Anything-3-MONO-ONNX', file: 'da-v3-mono-large_q4f16_opset21_optimized.onnx' },
-  da2l: { repo: 'onnx-community/depth-anything-v2-large', file: 'onnx/model_fp16.onnx', size: 669e6 },   // relative disparity (near = high), same as DA3 Mono
-  da2b: { repo: 'onnx-community/depth-anything-v2-base', file: 'onnx/model_fp16.onnx', size: 195e6 },
+  fp16: { repo: 'Jens-Duttke/Depth-Anything-3-MONO-ONNX', rev: '17ee0593a09b26b69e0922f1e794fa32b025349e', file: 'da-v3-mono-large_fp16_opset21_optimized.onnx' },
+  q4:   { repo: 'Jens-Duttke/Depth-Anything-3-MONO-ONNX', rev: '17ee0593a09b26b69e0922f1e794fa32b025349e', file: 'da-v3-mono-large_q4f16_opset21_optimized.onnx' },
+  da2l: { repo: 'onnx-community/depth-anything-v2-large', rev: '1fa1591c7b080e98da9655827c3a33a3972a4a83', file: 'onnx/model_fp16.onnx', size: 669e6 },   // relative disparity (near = high), same as DA3 Mono
+  da2b: { repo: 'onnx-community/depth-anything-v2-base', rev: 'dd4557d492cd7b563738ac8d9ccff9094620983c', file: 'onnx/model_fp16.onnx', size: 195e6 },
 };
 const NORMAL_MODELS = {
-  vitl: { repo: 'Ruicheng/moge-2-vitl-normal-onnx' },
-  vitb: { repo: 'Ruicheng/moge-2-vitb-normal-onnx' },
-  vits: { repo: 'Ruicheng/moge-2-vits-normal-onnx' },
+  vitl: { repo: 'Ruicheng/moge-2-vitl-normal-onnx', rev: '1c02388b024dd34da413e1a934d7a941785f1460' },
+  vitb: { repo: 'Ruicheng/moge-2-vitb-normal-onnx', rev: '2d247a122ada42ce700fe59273cd62e076da1f32' },
+  vits: { repo: 'Ruicheng/moge-2-vits-normal-onnx', rev: 'e50ffda41565591092adea54c6ac83d6212e1e23' },
 };
 const MEAN = [0.485, 0.456, 0.406], STD = [0.229, 0.224, 0.225];
 
@@ -2605,10 +2606,10 @@ async function cacheGet(k) { try { const db = await idb(); return await new Prom
 async function cachePut(k, v) { try { const db = await idb(); await new Promise(res => { const t = db.transaction('m', 'readwrite'); t.objectStore('m').put(v, k); t.oncomplete = res; t.onerror = res; t.onabort = res; }); return true; } catch { return false; } }
 
 // ---------- generic model loading ----------
-async function listRepo(repo) {
-  const ck = 'list:' + repo, cached = await cacheGet(ck);
+async function listRepo(repo, rev = 'main') {   // models are pinned to a fixed revision, so an upstream update can't change results
+  const ck = 'list:' + repo + (rev === 'main' ? '' : '@' + rev), cached = await cacheGet(ck);
   try {
-    const r = await fetch(`${HF}/api/models/${repo}/tree/main?recursive=true`);
+    const r = await fetch(`${HF}/api/models/${repo}/tree/${rev}?recursive=true`);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json(); const files = j.filter(f => f.type === 'file').map(f => ({ path: f.path, size: f.size || (f.lfs && f.lfs.size) || 0 }));
     cachePut(ck, files); return files;
@@ -2624,9 +2625,10 @@ function pickFiles(files, prefer) {
   const ext = files.filter(f => f !== main && f.path.startsWith(dir) && !/\.onnx$/i.test(f.path) && f.path.slice(dir.length).startsWith(stem) && /(data|_data|\.bin|\.weight)$/i.test(f.path));
   return { main, ext };
 }
-async function fetchCached(url, label, prog, stat, done0, total) {
+async function fetchCached(url, label, prog, stat, done0, total, oldUrl) {
   let blob = await cacheGet(url);
   if (blob) return blob;
+  if (oldUrl && oldUrl !== url && (blob = await cacheGet(oldUrl))) { await cachePut(url, blob); return blob; }   // copy cached before pinning (2.0.4 and older): same file, no re-download
   const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + label);
   const rd = r.body.getReader(), chunks = []; let got = 0;
   for (;;) { const { done, value } = await rd.read(); if (done) break; chunks.push(value); got += value.length;
@@ -2704,11 +2706,11 @@ async function loadKind(kind) {
   try {
     let main, ext;
     if (cfg.file) { main = { path: cfg.file, size: 0 }; ext = []; }
-    else { setStatus(stat, 'Listing ' + cfg.repo + '…'); ({ main, ext } = pickFiles(await listRepo(cfg.repo))); }
+    else { setStatus(stat, 'Listing ' + cfg.repo + '…'); ({ main, ext } = pickFiles(await listRepo(cfg.repo, cfg.rev))); }
     const all = [main, ...ext], total = all.reduce((a, f) => a + (f.size || (isD ? (cfg.size || (cfg.file.includes('q4') ? 336e6 : 656e6)) : 0)), 0) || 1;
     $(prog).hidden = false; let done = 0;
     const blobs = [];
-    for (const f of all) { const b = await fetchCached(`${HF}/${cfg.repo}/resolve/main/${f.path}`, f.path.split('/').pop(), prog, stat, done, total); blobs.push(b); done += b.size; }
+    for (const f of all) { const b = await fetchCached(`${HF}/${cfg.repo}/resolve/${cfg.rev || 'main'}/${f.path}`, f.path.split('/').pop(), prog, stat, done, total, `${HF}/${cfg.repo}/resolve/main/${f.path}`); blobs.push(b); done += b.size; }
     $(prog).hidden = true;
     setStatus(stat, 'Building inference session (first run can take a minute)…'); await tick();
     const model = new Uint8Array(await blobs[0].arrayBuffer());
@@ -2938,14 +2940,19 @@ function setupWorking() {
 
   prepUploadNormal();
 }
+async function readNormal16(f) {   // a 16-bit PNG normal map keeps its full precision (the browser's image decoder gives 8 bits: banding and drift once integrated)
+  if (!f || !/\.png$/i.test(f.name || '')) return null;
+  try { const p = await Core.decodePNG(new Uint8Array(await f.arrayBuffer()), true); return p && p.bits === 16 && p.rgb ? p : null; } catch { return null; }
+}
 function prepUploadNormal() {
   S.upNormal = null; if (!S.nrmImg || !S.W) return;
-  const c = document.createElement('canvas'); c.width = S.W; c.height = S.H;
-  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(S.nrmImg, 0, 0, S.W, S.H);
-  const d = x.getImageData(0, 0, S.W, S.H).data, N = S.W * S.H, dx = S.nrmConv === 'dx';
-  const nx = new Float32Array(N), ny = new Float32Array(N), nz = new Float32Array(N);
-  const sx = S.upFlipX ? -1 : 1;
-  for (let i = 0; i < N; i++) { nx[i] = sx * (d[i * 4] / 127.5 - 1); const g = d[i * 4 + 1] / 127.5 - 1; ny[i] = dx ? g : -g; nz[i] = d[i * 4 + 2] / 127.5 - 1; }
+  const N = S.W * S.H, dx = S.nrmConv === 'dx', nx = new Float32Array(N), ny = new Float32Array(N), nz = new Float32Array(N), sx = S.upFlipX ? -1 : 1;
+  if (S.nrm16 && S.nrm16.rgb) { const p = S.nrm16, [r, g, b] = p.rgb.map(a => Core.resample(a, p.w, p.h, S.W, S.H));
+    for (let i = 0; i < N; i++) { nx[i] = sx * (r[i] * 2 - 1); const gg = g[i] * 2 - 1; ny[i] = dx ? gg : -gg; nz[i] = b[i] * 2 - 1; } }
+  else { const c = document.createElement('canvas'); c.width = S.W; c.height = S.H;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(S.nrmImg, 0, 0, S.W, S.H);
+    const d = x.getImageData(0, 0, S.W, S.H).data;
+    for (let i = 0; i < N; i++) { nx[i] = sx * (d[i * 4] / 127.5 - 1); const g = d[i * 4 + 1] / 127.5 - 1; ny[i] = dx ? g : -g; nz[i] = d[i * 4 + 2] / 127.5 - 1; } }
   S.upNormal = { nx, ny, nz };
   if (S.depth && $('autoNrm').checked) checkUploadedNormals();
 }
@@ -3441,7 +3448,13 @@ function wkCall(type, msg, inputs) {
 // ---------- compose ----------
 function down2(a, w, h) { const W = (w >> 2) * 2, H = (h >> 2) * 2, o = new Float32Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = 2 * y * w + 2 * x; o[y * W + x] = 0.25 * (a[i] + a[i + 1] + a[i + w] + a[i + w + 1]); } return o; }
-function scheduleCompose() { if (!S.depth) return; clearTimeout(S.composeTimer); S.composeTimer = setTimeout(() => { histRecord(); compose($('halfPrev').checked && Math.max(S.W, S.H) > 1100); }, 120); }   // record when the change settles, not when a busy compose gets round to it
+function scheduleCompose() { if (!S.depth) return; S.setGen = (S.setGen || 0) + 1; clearTimeout(S.composeTimer); S.composeTimer = setTimeout(() => { histRecord(); compose($('halfPrev').checked && Math.max(S.W, S.H) > 1100); }, 120); }   // record when the change settles, not when a busy compose gets round to it
+// Exports: the full-size relief for the settings as they are now. A preview, a change still waiting to be computed
+// or a compute already running for older settings all mean computing it again first.
+async function freshRelief() {
+  const H = S.relief; if (H && !S.reliefHalf && !S.cBusy && S.reliefGen === (S.setGen || 0)) return H;
+  clearTimeout(S.composeTimer); return await compose(false);
+}
 // One compose runs at a time. While busy, only the newest request waits; a full-size (export) request is never dropped for a preview.
 function compose(half) {
   if (!S.depth) return Promise.resolve(null);
@@ -3471,7 +3484,7 @@ function histGo(d) { const p = HIST.pos + d; if (p < 0 || p >= HIST.stack.length
 function histUI() { if ($('btnUndo')) { $('btnUndo').disabled = HIST.pos <= 0; $('btnRedo').disabled = HIST.pos >= HIST.stack.length - 1; } }
 async function runCompose(req) {
   histRecord();
-  S.nCompose = (S.nCompose || 0) + 1; S.cBusy = true; $('busyBar').hidden = false; const { half } = req, t0 = performance.now();
+  const gen = S.setGen || 0; S.nCompose = (S.nCompose || 0) + 1; S.cBusy = true; $('busyBar').hidden = false; const { half } = req, t0 = performance.now();
   setStatus('compStatus', half ? 'Computing preview (½ res)…' : 'Computing…');
   let result = null;
   try {
@@ -3494,7 +3507,7 @@ async function runCompose(req) {
       await tick(); { const H = Core.compose(inp, prm); out = { H, w, h, hist: { i: H.histIn, o: H.histOut } }; }
     }
     S.hist = out.hist || null; drawCurve();
-    S.relief = out.H; S.reliefW = out.w; S.reliefH = out.h; S.reliefHalf = half; result = out.H;
+    S.relief = out.H; S.reliefW = out.w; S.reliefH = out.h; S.reliefHalf = half; S.reliefGen = gen; result = out.H;
     const note = S.statusNote || ''; S.statusNote = '';
     setStatus('compStatus', note + `${out.w}×${out.h}${half ? ' preview' : ''} in ${((performance.now() - t0) / 1000).toFixed(2)} s${nrm ? '' : ' · no normals: depth only'}${needMask ? ' · Level field / Lift / edge settings need a mask – set Mask to Auto' : ''}`);
     if (S.view !== 'input') render();
@@ -4069,8 +4082,9 @@ async function exportSTL() {
     const multi = p.tiles.length > 1;
     const nm = await saveAs(multi ? `${S.imgName}_relief_${p.tx}x${p.ty}_tiles.zip` : p.tiles[0].name, multi ? 'zip' : 'stl', async () => {
     setStatus('stlStatus', 'Computing full-resolution relief…');
-    let H = S.relief; if (S.reliefHalf || !H) { clearTimeout(S.composeTimer); H = await compose(false); } if (!H) throw new Error('no relief');
+    const H0 = await freshRelief(); let H = H0; if (!H) throw new Error('no relief');
     H = mirrorOut(H, S.reliefW, S.reliefH);
+    { const st = Math.max((S.reliefW - 1) / Math.max(1, p.GX - 1), (S.reliefH - 1) / Math.max(1, p.GY - 1)); if (st > 1.3) H = Core.blur(H, S.reliefW, S.reliefH, st * 0.42); }   // grid coarser than the pixels: average them first, so fine texture doesn't alias into jaggies or moiré
     setStatus('stlStatus', `Building ${p.tiles.length > 1 ? p.tiles.length + ' tiles' : 'mesh'} (${(p.tris / 1e6).toFixed(1)} M triangles)…`);
     const opt = { GX: p.GX, GY: p.GY, Wmm: p.Wmm, Hmm: p.Hmm, depthMM: p.Dmm, baseMM: p.Bmm, box: p.box };
     let files;
@@ -4174,7 +4188,7 @@ async function openProject(file) {
     const asFile = async (key) => { const nm = J.files && J.files[key]; if (!nm) return null; const u = await get(nm); return u ? new File([u], nm, { type: 'image/' + (nm.split('.').pop() === 'jpg' ? 'jpeg' : nm.split('.').pop()) }) : null; };
     const imgF = await asFile('image'); if (!imgF) throw new Error('project has no image');
     S.img = await loadImg(imgF); S.imgFile = imgF; S.imgName = J.imgName || 'relief';
-    S.nrmFile = await asFile('normal_upload'); S.nrmImg = S.nrmFile ? await loadImg(S.nrmFile) : null;
+    S.nrmFile = await asFile('normal_upload'); S.nrmImg = S.nrmFile ? await loadImg(S.nrmFile) : null; S.nrm16 = await readNormal16(S.nrmFile);
     S.maskFile = await asFile('mask_upload'); S.upMaskImg = S.maskFile ? await loadImg(S.maskFile) : null; $('btnClrMask').hidden = !S.upMaskImg;
     if (J.settings && J.settings.ui && J.settings.ui.workRes) $('workRes').value = J.settings.ui.workRes;
     S.maskUserSet = true; S.pickColor = (J.settings && J.settings.pickColor) || null;
@@ -4206,7 +4220,7 @@ function outBase() { return null; }   // names are suggested per file; the save 
 // Opens the save dialog first (browsers only allow it straight after a click), then builds the file and writes it there.
 // Chrome / Edge: the real Save dialog, remembering the last folder per kind of file. Other browsers: a normal download.
 // The desktop build can provide window.rfNative { chooseSave(name, kind) → path|null, writeFile(path, blob) } instead.
-const APP_VERSION = '2.0.3';
+const APP_VERSION = '2.0.5';
 const SAVE_TYPES = { png: { description: 'PNG image', accept: { 'image/png': ['.png'] } }, stl: { description: 'STL 3D model', accept: { 'model/stl': ['.stl'] } },
   zip: { description: 'ZIP archive', accept: { 'application/zip': ['.zip'] } }, relief: { description: 'Relief Forge project', accept: { 'application/octet-stream': ['.relief'] } },
   json: { description: 'JSON file', accept: { 'application/json': ['.json'] } } };
@@ -4239,7 +4253,7 @@ async function exportPNG(bits) {
   try {
     const nm = await saveAs(`${S.imgName}_relief_${S.W}x${S.H}_${bits}bit.png`, 'png', async () => {
       setStatus('expStatus', 'Computing full-resolution relief…'); await tick();
-      let H = S.relief; if (S.reliefHalf || !H) { clearTimeout(S.composeTimer); H = await compose(false); } if (!H) throw new Error('no relief');
+      const H0 = await freshRelief(); let H = H0; if (!H) throw new Error('no relief');
       setStatus('expStatus', 'Encoding PNG…'); await tick(); H = mirrorOut(H, S.reliefW, S.reliefH);
       const b = await Core.encodePNG(H, S.reliefW, S.reliefH, bits); size = mb(b); return b; });
     setStatus('expStatus', nm == null ? 'Not saved.' : `Saved ${nm} (${size}).`, nm == null ? '' : 'ok');
@@ -4265,6 +4279,7 @@ function onImage(file) {
   loadImageFile(file, im => {
     S.cutMem = {}; S.pickColor = null; S.paint = null; PT.undo = []; PT.mode = null; paintUI(); S.sculpt = null; SB.undo = []; SB.mode = null; sbUI(); S.img = im; S.imgFile = file; S.imgName = file.name.replace(/\.[^.]+$/, '') || 'relief';
     S.depth = S.depthTiles = S.mogeNormal = S.mogeDepth = S.relief = null; S.maskCache = null;
+    S.nrmImg = S.nrmFile = S.nrm16 = S.upNormal = null; S.ltB = S.ltBlur = null;   // a new picture doesn't inherit the last project's uploaded normals or lithophane bake
     ['global', 'normal', 'tiles', 'mask', 'relief', 'shade', '3d'].forEach(v => document.querySelector(`.tab[data-v="${v}"]`).disabled = true);
     S.freshDefault = true; histReset(); refreshThumbs(); setView('input'); updateButtons(); setStatus('runStatus', `${im.naturalWidth}×${im.naturalHeight} loaded.`);
   });
@@ -4348,6 +4363,11 @@ $('btnStl').onclick = exportSTL;
 const LT_TLO = 0.03;
 // light from a direction like a clock face (0° = from the top, 90° = from the right) at a height above the plate (90° = straight on)
 const ltLightVec = () => { const az = (+$('ltAz').value || 0) * Math.PI / 180, el = (+$('ltEl').value || 41) * Math.PI / 180; return [Math.sin(az) * Math.cos(el), -Math.cos(az) * Math.cos(el), Math.sin(el)]; };
+async function ltBake() {   // cached bake, valid only for the current picture size, normals and mask (light controls clear it too)
+  const n = activeNormal(), m = currentMask(), c = S.ltB;
+  if (c && c.W === S.W && c.H === S.H && c.n === n && c.m === m && c.b.length === S.W * S.H) return c.b;
+  const b = await ltBrightness(); S.ltB = { b, n, m, W: S.W, H: S.H }; S.ltBlur = null; return b;
+}
 async function ltBrightness() {   // brightness 0..1 at working size: what the plate should look like with a light behind it
   const W = S.W, H = S.H, N = W * H, M = currentMask(), b = new Float32Array(N);
   const n = activeNormal(); if (!n) throw new Error('no normals: run the passes with a normal model');
@@ -4437,7 +4457,7 @@ async function ltPreview() {
   if (!S.depth) return; const c = $('ltCv'), info = $('ltInfo'), v = $('ltView').value;
   $('lt3Opts').hidden = v !== '3d'; $('lt3d').hidden = v !== '3d'; c.hidden = v === '3d';
   try { let p;
-    info.textContent = 'Baking…'; await tick(); const b = S.ltB || await ltBrightness(); S.ltB = b; p = ltPlate(b, 520);
+    info.textContent = 'Baking…'; await tick(); const b = await ltBake(); p = ltPlate(b, 520);
     if (v === '3d') await lt3dShow(p);
     else { const k = Math.LN2 / ((+$('lt3Half').value || 45) / 100); c.width = p.gx; c.height = p.gy; const im = new ImageData(p.gx, p.gy), span = Math.max(1e-3, p.tmax - p.tmin);
       for (let i = 0; i < p.T.length; i++) { const t = p.T[i]; let r, g, bl;
@@ -4453,7 +4473,7 @@ async function ltPreview() {
 async function ltSave() {
   const btn = $('ltSave'); btn.disabled = true;
   try { const nm = await saveAs(`${S.imgName}_lithophane_${Math.round(+$('ltW').value || 100)}mm.stl`, 'stl', async () => { $('ltInfo').textContent = 'Building the plate…'; await tick();
-      const b = S.ltB || await ltBrightness(); return ltSTL(ltPlate(b, 0)); });
+      const b = await ltBake(); return ltSTL(ltPlate(b, 0)); });
     $('ltInfo').textContent = nm == null ? 'Not saved.' : 'Saved ' + nm; }
   catch (e) { console.error(e); $('ltInfo').textContent = 'Save failed: ' + (e.message || e); }
   btn.disabled = false;
