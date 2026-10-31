@@ -4,6 +4,33 @@ Changes made to `index.html` from the GitHub version (commit 4ea81d0). With all 
 
 **Exports are not changed by the preview.** The preview only shows what your process will produce. The PNG and STL always carry the full design, so CAM, slicer or laser software can use finer tools or rest passes. Only **Mould draft** changes the export, and only when it's set above 0°.
 
+## New in 2.0.6 (materials and fixes)
+
+### More realistic materials in the 3D view
+- **Wood grain runs through the carving.** Wood presets now use real 3D grain (growth rings, rays and pores), so the carving cuts through the rings the way a chisel does instead of a flat picture being pasted on top. Choose *No texture* under grain to turn it off.
+- **Marble veins run through the stone** in the same way (Carrara and the other veined presets).
+- **Recesses darken naturally.** Shading worked out from the relief itself (ambient occlusion) makes deep cuts and undercuts read better.
+- **Studio lighting.** The scene is lit by a soft studio environment that follows the light direction, with softer shadow edges and a film-style tone curve, so highlights on metal and gloss no longer burn out to flat white. The separate rim light is gone.
+- **Presets retuned** for the new lighting (woods, metals, stone, resins).
+- **The colour picker tints the grain.** Changing the colour of a wood or marble preset now recolours the 3D grain or veins instead of switching them off.
+- **Material swatches show the new look.**
+
+### Faster material switching in the 3D view
+- **Switching material tabs and presets is much lighter.** Swatch balls reuse one material instead of building a new one each time, so each kind of shader is compiled once rather than once per swatch. The drawn grain patterns (stone, concrete, leather) are kept and shared between the swatches and the model.
+- **Warm-up while idle.** After the model loads, the viewer quietly prepares the shader for each kind of preset and draws the remaining swatches when the browser is idle, so a first click on a tab or preset doesn't stall.
+- **Shadows aren't redrawn while you orbit or zoom.** The shadow map is only redrawn when the model, material or light changes. Dragging the light rebuilds the studio reflections at most about 11 times a second, and always finishes on the final position.
+- No change to the look: renders before and after are pixel-identical with Ambient occlusion at 100%.
+
+### Ambient occlusion slider (Light panel)
+- **Light → Ambient occlusion** sets how much the recesses darken from the occlusion worked out from the depth map. At 0% only the real light and shadow show, which is physically plain. Higher values look richer but aren't physically accurate. **The default is 25%.** The first 2.0.6 build was effectively 100%.
+- Changing it is instant: there is no shader rebuild and the model isn't rebuilt. Like the other light settings, it isn't saved between sessions.
+
+### Fixes
+- **Model cache check.** A depth model already in the browser cache is checked against the pinned file's exact size. 2.0.5 could reuse an older upload of the DA3 model as if it were the pinned version; that copy is now replaced with a one-time re-download (about 690 MB for fp16). A matching older copy is moved to the new name and the old copy deleted, so it no longer takes up the space twice.
+- **Lithophane page pins its models too** (same versions as the main app) and shares the main app's cache, so models aren't downloaded twice.
+- **Less memory for 16-bit normal maps** from older projects (about a third of what 2.0.5 used).
+- **Opening a new picture clears the uploaded mask**, like it already did for uploaded normals. *Clear* on an uploaded mask now also stops it coming back when the project is saved.
+
 ## New in 2.0.5 (fixes)
 
 - **Lithophane always uses the current picture.** Its baked picture was only refreshed when the light controls moved, so after opening another project or image it could save the previous one, and a different-sized picture gave a broken STL. It now rebakes whenever the picture, normals or mask change.
