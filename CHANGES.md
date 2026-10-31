@@ -4,6 +4,12 @@ Changes made to `index.html` from the GitHub version (commit 4ea81d0). With all 
 
 **Exports are not changed by the preview.** The preview only shows what your process will produce. The PNG and STL always carry the full design, so CAM, slicer or laser software can use finer tools or rest passes. Only **Mould draft** changes the export, and only when it's set above 0°.
 
+## New in 2.0.7 (3D view loads faster)
+
+- **The 3D tab opens without a pause.** Material swatches are drawn one per frame (placeholders until then), the open tab first; other tabs' swatches are drawn when you open them, instead of all 56 up front.
+- **No freezes after it opens.** The warm-up that prepares each kind of material starts a second and a half after the model appears, one step at a time, and asks the graphics driver to build the shaders in the background (Chrome / Edge) instead of locking the page while it compiles.
+- No change to the look: renders before and after match (checked on walnut, silk PLA and clear resin).
+
 ## New in 2.0.6 (materials and fixes)
 
 ### More realistic materials in the 3D view
