@@ -340,6 +340,10 @@ html.desktop .viewbar{padding-right:calc(14px + 138px)}
       <div class="drop" id="dropImg">Drop or click to add <b>image</b><div class="help" style="margin-top:4px">Preferred: uniform matte material · plain coloured or transparent background</div></div>
       <input type="file" id="fileImg" accept="image/*">
       <div class="thumbs" id="thumbs"></div>
+      <details class="adv" style="margin-top:8px"><summary>Optional: import a depth map (skip AI)</summary>
+        <div class="row" style="margin-top:6px"><label class="btn mini grow" for="fileUpDepth" style="text-align:center" title="Skip the depth AI pass and sculpt an existing 16-bit or 8-bit height/depth PNG directly.">Import depth map (skip AI)…</label><input type="file" id="fileUpDepth" accept="image/*"></div>
+        <div class="help">Supports 16-bit PNGs at full precision.</div>
+      </details>
     </div>
     <div class="card">
       <h3>Passes</h3>
@@ -1686,14 +1690,15 @@ const Core = (() => {
     const zlib = await import('node:zlib'); return new Uint8Array(zlib.deflateSync(data));
   }
   async function encodePNG(H, w, h, bits = 16) {
-    const bpp = bits / 8, stride = w * bpp + 1, raw = new Uint8Array(stride * h);
+    const bpp = bits / 8, rowBytes = w * bpp, stride = rowBytes + 1, raw = new Uint8Array(stride * h), row = new Uint8Array(rowBytes);
     const max = bits === 16 ? 65535 : 255;
     for (let y = 0; y < h; y++) {
-      const o = y * stride; raw[o] = 0;
+      const o = y * stride; raw[o] = 1;   // PNG filter 1 (Sub): huge savings on smooth 16-bit height maps
       for (let x = 0; x < w; x++) {
         const v = Math.round(Math.min(1, Math.max(0, H[y * w + x])) * max);
-        if (bits === 16) { raw[o + 1 + 2 * x] = v >> 8; raw[o + 2 + 2 * x] = v & 255; } else raw[o + 1 + x] = v;
+        if (bits === 16) { row[2 * x] = v >> 8; row[2 * x + 1] = v & 255; } else row[x] = v;
       }
+      for (let i = 0; i < rowBytes; i++) raw[o + 1 + i] = (row[i] - (i >= bpp ? row[i - bpp] : 0)) & 255;
     }
     const idat = await deflate(raw);
     const chunk = (type, data) => {
@@ -2066,7 +2071,19 @@ const Core = (() => {
     if (proc === 'cnc' && o.bit === 'vbit' && o.cutDiaMM > 0) { stats.coneDepth = Math.max(0, (o.cutDiaMM - (o.tipMM || 0)) / 2) / Math.tan(Math.max(1, o.angleDeg) / 2 * Math.PI / 180); }
     if (proc === 'cnc' && (o.bit === 'vbit' || o.bit === 'taper')) stats.stepover = o.bit === 'vbit' ? 2 * 0.02 * Math.tan(o.angleDeg / 2 * Math.PI / 180) : stepoverFor(Math.max(0.02, o.tipMM), 0.02);
     if (step > 0) stats.steps = stepsOverride || Math.ceil(D / step);
-    let OV = null; if (over) { OV = new Uint8Array(N); let no = 0; for (let y = 0; y < hh; y++) for (let x = 0; x < ww; x++) { const v = over[(y + pad) * W + pad + x]; OV[y * ww + x] = v; no += v; } stats.overhang = area ? no / area : 0; }
+    let OV = null;
+    if (over) {
+      OV = new Uint8Array(N); let no = 0;
+      if (f > 1) {
+        const ovc = new Float32Array(ww * hh);
+        for (let y = 0; y < hh; y++) for (let x = 0; x < ww; x++) ovc[y * ww + x] = over[(y + pad) * W + pad + x];
+        const ovFull = resample(ovc, ww, hh, w, h);
+        for (let i = 0; i < N; i++) { const v = ovFull[i] >= 0.5 ? 1 : 0; OV[i] = v; no += v; }
+      } else {
+        for (let y = 0; y < hh; y++) for (let x = 0; x < ww; x++) { const v = over[(y + pad) * W + pad + x]; OV[y * w + x] = v; no += v; }
+      }
+      stats.overhang = area ? no / area : 0;
+    }
     return { S: H01, diff, stats, over: OV };
   }
   // old name, kept for anything that still calls it
@@ -3195,20 +3212,11 @@ function keepThinInteriorLines(A, W, H) {
   for (let i = 0; i < N; i++) { const l = lab[i]; if (!l || touch.has(l) || maxD.get(l) > halfW) continue; A[i] = 1; n++; }
   return n;
 }
-function maskKindNow() {
-  const src = $('maskSrc').value; let kind = src;
-  if (src === 'auto') kind = S.alpha ? 'alpha' : S.key ? 'key' : 'depth';
-  if (src === 'upload' && !S.upMaskImg) kind = 'depth';
-  if (src === 'moge' && !S.mogeMask) kind = 'depth';
-  if (src === 'alpha' && !S.alpha) kind = 'none';
-  if (src === 'key' && !S.key) kind = 'none';
-  return kind;
-}
 function buildMaskSet() {
   const src = $('maskSrc').value;
   if (src === 'off' || !S.depth) { $('maskInfo').textContent = src === 'off' && (S.alpha || S.key) ? (S.alpha ? 'Transparent background detected – choose Auto or Transparency.' : 'Flat background detected – choose Auto or Flat colour.') : ''; return null; }
-  if (maskKindNow() === 'none') { $('maskInfo').textContent = src === 'alpha' ? 'This image has no transparency – choose another mask.' : 'No background colour yet – click Pick colour, then the background.'; return null; }
-  const kind = maskKindNow(), nrm = activeNormal(), prot = false;   // 'Protect subject using normals' retired
+  if (maskKind() === 'none') { $('maskInfo').textContent = src === 'alpha' ? 'This image has no transparency – choose another mask.' : 'No background colour yet – click Pick colour, then the background.'; return null; }
+  const kind = maskKind(), nrm = activeNormal(), prot = false;   // 'Protect subject using normals' retired
   const keepLines = false;   // 'Keep thin dark lines' retired (small enclosed specks are filled instead)
   const key = [kind, P.bgCutoff, P.maskClean, P.edgeSmooth, P.edgeSoft, prot, keepLines].join('|');
   const pv = S.paint ? S.paintVer : 0;
@@ -4111,7 +4119,12 @@ async function exportSTL() {
 }
 
 // ---------- project files ----------
-const loadImg = blob => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('could not decode image')); im.src = URL.createObjectURL(blob); });
+const loadImg = (blob, slot) => new Promise((res, rej) => {
+  const url = URL.createObjectURL(blob), im = new Image();
+  im.onload = () => { if (slot) { if (S['__url_' + slot]) URL.revokeObjectURL(S['__url_' + slot]); S['__url_' + slot] = url; } res(im); };
+  im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('could not decode image')); };
+  im.src = url;
+});
 async function deflateRaw(u8) {
   if (typeof CompressionStream === 'undefined') return null;
   try { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer()); } catch { return null; }
@@ -4199,9 +4212,9 @@ async function openProject(file) {
     if (J.app !== 'relief-forge') throw new Error('not a Relief Forge project');
     const asFile = async (key) => { const nm = J.files && J.files[key]; if (!nm) return null; const u = await get(nm); return u ? new File([u], nm, { type: 'image/' + (nm.split('.').pop() === 'jpg' ? 'jpeg' : nm.split('.').pop()) }) : null; };
     const imgF = await asFile('image'); if (!imgF) throw new Error('project has no image');
-    S.img = await loadImg(imgF); S.imgFile = imgF; S.imgName = J.imgName || 'relief';
-    S.nrmFile = await asFile('normal_upload'); S.nrmImg = S.nrmFile ? await loadImg(S.nrmFile) : null; S.nrm16 = await readNormal16(S.nrmFile);
-    S.maskFile = await asFile('mask_upload'); S.upMaskImg = S.maskFile ? await loadImg(S.maskFile) : null; $('btnClrMask').hidden = !S.upMaskImg;
+    S.img = await loadImg(imgF, 'img'); S.imgFile = imgF; S.imgName = J.imgName || 'relief';
+    S.nrmFile = await asFile('normal_upload'); S.nrmImg = S.nrmFile ? await loadImg(S.nrmFile, 'nrm') : null; S.nrm16 = await readNormal16(S.nrmFile);
+    S.maskFile = await asFile('mask_upload'); S.upMaskImg = S.maskFile ? await loadImg(S.maskFile, 'mask') : null; $('btnClrMask').hidden = !S.upMaskImg;
     if (J.settings && J.settings.ui && J.settings.ui.workRes) $('workRes').value = J.settings.ui.workRes;
     S.maskUserSet = true; S.pickColor = (J.settings && J.settings.pickColor) || null;
     if (J.settings && J.settings.ui && J.settings.ui.maskSrc) $('maskSrc').value = J.settings.ui.maskSrc;
@@ -4232,7 +4245,7 @@ function outBase() { return null; }   // names are suggested per file; the save 
 // Opens the save dialog first (browsers only allow it straight after a click), then builds the file and writes it there.
 // Chrome / Edge: the real Save dialog, remembering the last folder per kind of file. Other browsers: a normal download.
 // The desktop build can provide window.rfNative { chooseSave(name, kind) → path|null, writeFile(path, blob) } instead.
-const APP_VERSION = '2.0.7';
+const APP_VERSION = '2.0.8';
 const SAVE_TYPES = { png: { description: 'PNG image', accept: { 'image/png': ['.png'] } }, stl: { description: 'STL 3D model', accept: { 'model/stl': ['.stl'] } },
   zip: { description: 'ZIP archive', accept: { 'application/zip': ['.zip'] } }, relief: { description: 'Relief Forge project', accept: { 'application/octet-stream': ['.relief'] } },
   json: { description: 'JSON file', accept: { 'application/json': ['.json'] } } };
@@ -4281,10 +4294,15 @@ function exportNormal() {
 }
 
 // ---------- io ----------
-function loadImageFile(file, cb) { const url = URL.createObjectURL(file), im = new Image(); im.onload = () => cb(im); im.onerror = () => setStatus('runStatus', 'Could not read image ' + file.name, 'err'); im.src = url; }
+function loadImageFile(file, cb, slot) {
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => { if (slot) { if (S['__url_' + slot]) URL.revokeObjectURL(S['__url_' + slot]); S['__url_' + slot] = url; } cb(im); };
+  im.onerror = () => { URL.revokeObjectURL(url); setStatus('runStatus', 'Could not read image ' + file.name, 'err'); };
+  im.src = url;
+}
 function refreshThumbs() {
   const t = $('thumbs'); t.innerHTML = '';
-  if (S.img) { const i = new Image(); i.src = S.img.src; i.title = 'clay image'; t.appendChild(i); }
+  if (S.img) { const i = new Image(); i.src = S.img.src; i.title = 'source image'; t.appendChild(i); }
   if (S.nrmImg) { const i = new Image(); i.src = S.nrmImg.src; i.title = 'normal map'; t.appendChild(i); }
 }
 function onImage(file) {
@@ -4293,9 +4311,12 @@ function onImage(file) {
     S.depth = S.depthTiles = S.mogeNormal = S.mogeDepth = S.relief = null; S.maskCache = null;
     S.nrmImg = S.nrmFile = S.nrm16 = S.upNormal = null; S.ltB = S.ltBlur = null;   // a new picture doesn't inherit the last project's uploaded normals or lithophane bake
     S.upMaskImg = S.maskFile = null; $('fileMask').value = ''; $('btnClrMask').hidden = true; if ($('maskSrc').value === 'upload') $('maskSrc').value = 'auto';   // …or its uploaded mask
-    ['global', 'normal', 'tiles', 'mask', 'relief', 'shade', '3d'].forEach(v => document.querySelector(`.tab[data-v="${v}"]`).disabled = true);
+    if (S.__url_nrm) { URL.revokeObjectURL(S.__url_nrm); S.__url_nrm = null; }
+    if (S.__url_depthImport) { URL.revokeObjectURL(S.__url_depthImport); S.__url_depthImport = null; }
+    MILL.res = null; MILL.key = null; if ($('btnGoMill')) $('btnGoMill').disabled = true;
+    ['global', 'normal', 'tiles', 'mask', 'relief', 'shade', '3d', 'mill'].forEach(v => document.querySelector(`.tab[data-v="${v}"]`).disabled = true);
     S.freshDefault = true; histReset(); refreshThumbs(); setView('input'); updateButtons(); setStatus('runStatus', `${im.naturalWidth}×${im.naturalHeight} loaded.`);
-  });
+  }, 'img');
 }
 function updateButtons() {
   updateSteps();
@@ -4324,8 +4345,31 @@ $('fileImg').onchange = e => e.target.files[0] && onImage(e.target.files[0]);
 ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
 ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
 drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) onImage(f); });
-$('fileMask').onchange = e => { const f = e.target.files[0]; if (f) loadImageFile(f, im => { S.upMaskImg = im; S.maskFile = f; S.maskCache = null; $('btnClrMask').hidden = false; $('maskSrc').value = 'upload'; if (S.view === 'mask') render(); scheduleCompose(); }); };
+$('fileMask').onchange = e => { const f = e.target.files[0]; if (f) loadImageFile(f, im => { S.upMaskImg = im; S.maskFile = f; S.maskCache = null; $('btnClrMask').hidden = false; $('maskSrc').value = 'upload'; if (S.view === 'mask') render(); scheduleCompose(); }, 'mask'); };
 $('btnClrMask').onclick = () => { S.upMaskImg = null; S.maskFile = null; S.maskCache = null; $('fileMask').value = ''; $('btnClrMask').hidden = true; if (S.view === 'mask') render(); scheduleCompose(); };
+$('fileUpDepth').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const u8 = new Uint8Array(await f.arrayBuffer()), p16 = /\.png$/i.test(f.name) ? await Core.decodePNG(u8, false) : null;
+    loadImageFile(f, async im => { try {
+      if (!S.img) { S.img = im; S.imgFile = f; S.imgName = f.name.replace(/\.[^.]+$/, '') || 'relief'; }
+      setupWorking();
+      let dep;
+      if (p16) dep = (p16.w === S.W && p16.h === S.H) ? p16.data : Core.resample(p16.data, p16.w, p16.h, S.W, S.H);
+      else {
+        const c = document.createElement('canvas'); c.width = S.W; c.height = S.H;
+        const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, S.W, S.H);
+        const d = x.getImageData(0, 0, S.W, S.H).data; dep = new Float32Array(S.W * S.H);
+        for (let i = 0; i < dep.length; i++) dep[i] = (0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2]) / 255;
+      }
+      S.depth = dep; S.depthTiles = null; S.depthNorm = Core.normalize(dep, 0.5, 99.5);
+      if (S.upNormal && $('autoNrm').checked) checkUploadedNormals();
+      setAutoCutoff(); enableTabs(); refreshThumbs(); updateButtons(); histReset();
+      setStatus('runStatus', `Imported ${p16 ? p16.bits + '-bit PNG' : '8-bit'} depth map (${S.W}×${S.H}).`, 'ok');
+      await compose(false); setView('relief'); goStep('sculpt');
+    } catch (err) { console.error(err); setStatus('runStatus', 'Could not import depth map: ' + (err.message || err), 'err'); } }, S.img ? 'depthImport' : 'img');
+  } catch (err) { console.error(err); setStatus('runStatus', 'Could not import depth map: ' + (err.message || err), 'err'); }
+};
 $('btnPick').onclick = () => {
   if (!S.work || !S.depth) { $('maskInfo').textContent = 'Run the passes (or import a depth map) first, then pick.'; return; }
   S.picking = true; setView('input'); view.style.cursor = 'crosshair'; $('maskInfo').textContent = 'Click the background colour in the image…';
@@ -4398,17 +4442,22 @@ function ltShade(nx, ny, nz, out) {   // neutral grey stone: soft ambient, diffu
   for (let i = 0; i < out.length; i++) { const a = nx[i], c = ny[i], z = nz[i], k = Math.hypot(a, c, z) || 1, d = Math.max(0, (a * lx + c * ly + z * lz) / k), s = Math.pow(Math.max(0, (a * hx + c * hy + z * hz) / k), 40);
     out[i] = Math.min(1, 0.12 + 0.88 * d + 0.18 * s); }
 }
-function ltPlate(b, maxCells) {   // thickness grid in mm (row 0 = top of the picture), including the frame
+function ltPlateDims(maxCells) {
   const W = S.W, H = S.H, Wmm = Math.max(20, +$('ltW').value || 100), tmin = Math.max(0.3, +$('ltTmin').value || 0.8), tmax = Math.max(tmin + 0.2, +$('ltTmax').value || 3), fr = Math.max(0, +$('ltFrame').value || 0);
   let res = +$('ltRes').value || 0.15; let nx = Math.round(Wmm / res); if (maxCells && nx > maxCells) { nx = maxCells; res = Wmm / nx; }
+  const ny = Math.max(2, Math.round(nx * H / W)), F = Math.round(fr / res), gx = nx + 2 * F, gy = ny + 2 * F;
+  return { W, H, Wmm: gx * res, Hmm: gy * res, plateWmm: Wmm, tmin, tmax, fr, res, nx, ny, F, gx, gy };
+}
+function ltPlate(b, maxCells) {   // thickness grid in mm (row 0 = top of the picture), including the frame
+  const d = ltPlateDims(maxCells), { W, H, plateWmm: Wmm, tmin, tmax, res, nx, ny, F, gx, gy } = d;
   const pxmm = Wmm / W, sm = Math.max(0, +$('ltSmooth').value || 0), sg = Math.hypot(res / pxmm / 2, sm / 2.355 / pxmm);   // area-average down to the plate grid, plus the smoothing (as a width at half height)
   if (sg > 0.3 && b.length === W * H) { const c = S.ltBlur; if (c && c.b === b && Math.abs(c.sg - sg) < 1e-3) b = c.out; else { const o = Core.blur(b, W, H, sg); S.ltBlur = { b, sg, out: o }; b = o; } }
-  const ny = Math.max(2, Math.round(nx * H / W)), F = Math.round(fr / res), gx = nx + 2 * F, gy = ny + 2 * F, T = new Float32Array(gx * gy).fill(tmax + 0.6), lnT = Math.log(LT_TLO);
+  const T = new Float32Array(gx * gy).fill(tmax + 0.6), lnT = Math.log(LT_TLO);
   for (let y = 0; y < ny; y++) { const sy = Math.min(H - 1.001, (y + 0.5) * H / ny - 0.5), y0 = Math.max(0, Math.floor(sy)), fy = Math.max(0, sy - y0);
     for (let x = 0; x < nx; x++) { const sx = Math.min(W - 1.001, (x + 0.5) * W / nx - 0.5), x0 = Math.max(0, Math.floor(sx)), fx = Math.max(0, sx - x0), i = y0 * W + x0;
       const v = (b[i] * (1 - fx) + b[i + 1] * fx) * (1 - fy) + (b[i + W] * (1 - fx) + b[i + W + 1] * fx) * fy;
       T[(y + F) * gx + x + F] = tmin + (tmax - tmin) * Math.log(LT_TLO + (1 - LT_TLO) * v) / lnT; } }   // light fades exponentially in plastic: thickness from log brightness
-  return { T, gx, gy, res, tmin, tmax, Wmm: gx * res, Hmm: gy * res };
+  return { T, gx, gy, res, tmin, tmax, Wmm: d.Wmm, Hmm: d.Hmm };
 }
 function ltSTL(p) {   // watertight binary STL: textured top, flat back, walls, back as a fan from the centre
   const { T, gx, gy, res } = p, X = i => i * res, Y = j => (gy - 1 - j) * res, nTop = 2 * (gx - 1) * (gy - 1), ring = 2 * (gx - 1) + 2 * (gy - 1), n = nTop + 2 * ring + ring;
@@ -4479,7 +4528,7 @@ async function ltPreview() {
         else { const s = Math.pow(Math.min(1, Math.exp(-k * (t - p.tmin))), 1 / 2.2); r = 255 * s; g = 205 * s; bl = 140 * s; }
         im.data[i * 4] = r; im.data[i * 4 + 1] = g; im.data[i * 4 + 2] = bl; im.data[i * 4 + 3] = 255; }
       c.getContext('2d').putImageData(im, 0, 0); }
-    { const full = ltPlate(new Float32Array(16), 0), tris = 2 * full.gx * full.gy + 6 * (full.gx + full.gy);
+    { const full = ltPlateDims(0), tris = 2 * (full.gx - 1) * (full.gy - 1) + 6 * ((full.gx - 1) + (full.gy - 1));
       info.textContent = `Plate ${full.Wmm.toFixed(0)} × ${full.Hmm.toFixed(0)} mm · ${p.tmin}–${p.tmax} mm thick · STL about ${(tris * 50 / 1e6).toFixed(0)} MB`; }
   } catch (e) { info.textContent = 'Could not show it: ' + (e.message || e); }
 }

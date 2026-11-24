@@ -2,13 +2,13 @@
 
 The web app (`../index.html`) in its own window, plus:
 
-- **Native AI runtime** (ONNX Runtime for Node): DirectML on Windows, used instead of WebGPU when it works. Linux uses WebGPU first, then the native CPU runtime. Switch it off under Setup → Graphics.
+- **Native AI runtime** (ONNX Runtime for Node): WebGPU is used first, with the native CPU runtime as a fast automatic fallback. DirectML on Windows is available as an opt-in checkbox under Setup → Graphics.
 - **Native save dialogs**, remembering the last folder for each kind of file.
 - **Works offline** after the first run: the models are cached by the app, and the scripts and fonts it loads from CDNs are kept in the app's data folder.
 
 ## Releases
 
-GitHub builds them (`.github/workflows/desktop.yml`). Push a tag such as `v2.0.1` and a draft Release appears with:
+GitHub builds them (`.github/workflows/desktop-workflow.yml`). Push a tag such as `v2.0.1` and a draft Release appears with:
 
 - `Relief-Forge-<version>-windows-setup.exe`: installs for you only (no admin needed), with a Start menu entry. **Recommended.**
 - `Relief-Forge-<version>-windows-portable.exe`: one file, no install. It unpacks itself to the Temp folder on each start; on some PCs Temp's permissions stop Chromium's sandbox from reading it and the app closes at once (the zip or setup avoid this).

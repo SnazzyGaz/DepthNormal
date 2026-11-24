@@ -4,6 +4,17 @@ Changes made to `index.html` from the GitHub version (commit 4ea81d0). With all 
 
 **Exports are not changed by the preview.** The preview only shows what your process will produce. The PNG and STL always carry the full design, so CAM, slicer or laser software can use finer tools or rest passes. Only **Mould draft** changes the export, and only when it's set above 0°.
 
+## New in 2.0.8 (fixes and depth import)
+
+- **Process sim stays honest on tilted prints** when the tool is large enough that the sim works on a coarser grid. The overhang map and the percentage were wrongly squashed into the corner; they now match the full-resolution relief.
+- **Opening a new picture clears the Process sim.** The tab and its last result no longer stay from the previous image.
+- **Lithophane preview no longer allocates a full-size plate or reads off the end of an array** each time you move a slider. The size estimate in the preview now matches the STL.
+- **Memory leak on reload.** Temporary image URLs from the last picture, project or imported depth map are released when you load a new one.
+- **Import depth map (skip AI).** You can load an existing 16-bit or 8-bit height/depth PNG and go straight to Sculpt, without running the depth model.
+- **16-bit PNG exports are smaller** (PNG Sub filter) with a byte-exact round-trip — the same height values, often around a third of the old file size on smooth maps.
+- **Desktop app:** the `app://` path check no longer lets a crafted path reach a sibling folder on Windows. The desktop README now matches how graphics and the build workflow actually work.
+- **Duplicate user guide removed** from the repo root. The up-to-date copy is still at `docs/Relief-Forge-Basics.pdf`.
+
 ## New in 2.0.7 (3D view loads faster)
 
 - **The 3D tab opens without a pause.** Material swatches are drawn one per frame (placeholders until then), the open tab first; other tabs' swatches are drawn when you open them, instead of all 56 up front.

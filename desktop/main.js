@@ -105,7 +105,7 @@ app.whenReady().then(() => {
   const root = path.join(__dirname, 'app');
   protocol.handle('app', req => {
     const p = decodeURIComponent(new URL(req.url).pathname), file = path.normalize(path.join(root, p));
-    if (!file.startsWith(root)) return new Response('not found', { status: 404 });
+    if (!(file === root || file.startsWith(root + path.sep))) return new Response('not found', { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
   });
   session.defaultSession.protocol.handle('https', req => {
